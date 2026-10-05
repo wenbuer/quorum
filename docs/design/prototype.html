@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>AAIL · 工具原型设计 · 状态 01–05</title>
+<style>
+:root{
+  --void:#08090A; --bg:#101113; --surface:#16181B; --surface-2:#1C1F23; --surface-3:#23272C;
+  --line:#282C31; --line-strong:#383E45;
+  --text:#E9ECEF; --text-2:#A2A9B0; --text-3:#666E76; --text-4:#454B52;
+  --amber:#FF9B2F; --amber-hi:#FFB65E; --amber-lo:#B96C15; --amber-dim:rgba(255,155,47,.12);
+  --green:#5FD3A0; --green-dim:rgba(95,211,160,.13);
+  --red:#FF5A3C; --red-dim:rgba(255,90,60,.13);
+  --slate:#7C8794;
+  --win-surface:#202020; --win-line:#3A3A3A; --win-text:#FFFFFF; --win-text-2:#C5C5C5;
+  --r-pill:999px; --r-panel:10px; --r-card:6px; --r-btn:5px; --r-chip:3px; --r-toast:8px;
+  --f-ui:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+  --f-mono:"Cascadia Mono",Consolas,"SF Mono","DejaVu Sans Mono",monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--void);color:var(--text);font-family:var(--f-ui);font-size:12px;
+  -webkit-font-smoothing:antialiased;text-rendering:geometricPrecision}
+.mono,em.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-style:normal}
+.ic{display:inline-flex;align-items:center;justify-content:center;flex:none;color:inherit}
+.ic svg{width:100%;height:100%;display:block}
+.mlabel{font-family:var(--f-ui);font-size:9px;font-weight:600;letter-spacing:.17em;
+  text-transform:uppercase;color:var(--text-4);line-height:1}
+.dot{width:6px;height:6px;border-radius:50%;display:inline-block;flex:none;
+  box-shadow:0 0 0 3px rgba(0,0,0,.35)}
+.dot--live{background:var(--green);box-shadow:0 0 0 3px rgba(95,211,160,.12),0 0 8px rgba(95,211,160,.5)}
+.dot--busy{background:var(--amber);box-shadow:0 0 0 3px rgba(255,155,47,.12),0 0 8px rgba(255,155,47,.55);
+  animation:pulse 2.4s ease-in-out infinite}
+.dot--idle{background:var(--slate);box-shadow:0 0 0 3px rgba(124,135,148,.1)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.42}}
+@keyframes breathe{0%,100%{opacity:.62}50%{opacity:1}}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes pop{from{opacity:0;transform:scale(.965)}to{opacity:1;transform:none}}
+@keyframes slide{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:none}}
+@keyframes hazard{to{background-position:28px 0}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+.bench{display:grid;grid-template-rows:56px 1fr;height:100vh;min-height:0}
+.topbar{display:flex;align-items:center;gap:20px;padding:0 18px;background:var(--bg);
+  border-bottom:1px solid var(--line);box-shadow:inset 0 -1px 0 rgba(255,255,255,.02)}
+.brand{display:flex;align-items:center;gap:10px;padding-right:18px;border-right:1px solid var(--line);height:100%}
+.brand__mark{width:22px;height:22px;color:var(--amber);display:flex;align-items:center;justify-content:center;
+  border:1px solid var(--line-strong);border-radius:var(--r-btn);background:var(--surface);box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
+.brand__mark svg{width:14px;height:14px}
+.brand>span:last-child{display:flex;flex-direction:column;gap:3px}
+.brand__t{font-size:12.5px;font-weight:600;letter-spacing:.02em;line-height:1}
+.brand__s{font-size:9px;color:var(--text-4);letter-spacing:.18em;text-transform:uppercase;font-family:var(--f-mono);line-height:1}
+.tabs{display:flex;gap:6px;flex:1;min-width:0}
+.tab{height:30px;padding:0 12px;border-radius:var(--r-btn);border:1px solid var(--line);
+  background:var(--surface);color:var(--text-2);font-family:var(--f-ui);font-size:11.5px;cursor:pointer;
+  display:flex;align-items:center;gap:7px;white-space:nowrap;transition:.14s}
+.tab:hover{border-color:var(--line-strong);color:var(--text)}
+.tab.is-on{background:var(--amber-dim);border-color:var(--amber-lo);color:var(--amber-hi);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
+.tab__n{font-family:var(--f-mono);font-size:9.5px;color:var(--text-4)}
+.tab.is-on .tab__n{color:var(--amber)}
+.zoomer{display:flex;gap:0;border:1px solid var(--line);border-radius:var(--r-btn);overflow:hidden;background:var(--surface)}
+.zoomer button{height:30px;width:42px;background:transparent;border:none;color:var(--text-3);cursor:pointer;
+  font-family:var(--f-mono);font-size:10.5px;border-right:1px solid var(--line)}
+.zoomer button:last-child{border-right:none}
+.zoomer button.is-on{background:var(--surface-3);color:var(--amber)}
+.main{display:grid;grid-template-columns:1fr 300px;min-height:0}
+.stage{position:relative;overflow:auto;background:
+  radial-gradient(120% 80% at 30% 0%,rgba(255,155,47,.05),transparent 58%),
+  linear-gradient(180deg,#0D0E10,#08090A)}
+.stage::before{content:"";position:absolute;inset:0;pointer-events:none;
+  background-image:linear-gradient(rgba(255,255,255,.022) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,.022) 1px,transparent 1px);
+  background-size:24px 24px;
+  -webkit-mask-image:radial-gradient(85% 70% at 45% 45%,#000 20%,transparent 100%);
+  mask-image:radial-gradient(85% 70% at 45% 45%,#000 20%,transparent 100%)}
+.stage__inner{position:relative;min-height:100%;display:flex;align-items:center;justify-content:center;padding:56px 40px}
+#viewport{zoom:1}
+.scene{display:none}
+.scene.is-active{display:block;animation:rise .26s cubic-bezier(.2,.8,.2,1)}
+.scene__tag{position:absolute;left:0;top:-30px;display:flex;align-items:baseline;gap:10px;white-space:nowrap}
+.scene__tag b{font-size:11.5px;font-weight:600;color:var(--text-2)}
+.scene__tag i{font-style:normal;font-size:10px;color:var(--text-4);font-family:var(--f-mono)}
+.stage__callout{position:absolute;left:0;bottom:-58px;width:min(560px,70vw);font-size:11px;line-height:1.65;
+  color:var(--text-3);border-left:2px solid var(--line-strong);padding-left:12px}
+.wrap{position:relative}
+.side{border-left:1px solid var(--line);background:var(--bg);display:flex;flex-direction:column;min-height:0}
+.side__h{padding:16px 18px 12px;border-bottom:1px solid var(--line)}
+.side__h b{display:block;font-size:12px;margin-bottom:5px}
+.side__h p{font-size:10.5px;color:var(--text-3);line-height:1.6}
+.side__b{padding:14px 18px;overflow:auto}
+.kv[hidden]{display:none}
+.kv{display:grid;grid-template-columns:74px 1fr;gap:9px 10px;font-size:10.5px;align-items:baseline}
+.kv dt{color:var(--text-4);letter-spacing:.02em}
+.kv dd{color:var(--text-2);font-family:var(--f-mono);font-size:10px;line-height:1.5;word-break:break-word}
+.side__note{margin-top:16px;padding-top:14px;border-top:1px solid var(--line);font-size:10.5px;line-height:1.7;color:var(--text-3)}
+.side__note b{color:var(--text-2);font-weight:600}
+.hint{padding:10px 18px;border-top:1px solid var(--line);font-size:10px;color:var(--text-4);line-height:1.6}
+.hint kbd{font-family:var(--f-mono);background:var(--surface-2);border:1px solid var(--line);border-radius:3px;
+  padding:1px 4px;font-size:9.5px;color:var(--text-3)}
+
+/* --- dock / capsule --- */
+.dock{display:flex;align-items:flex-start;position:relative}
+.edge{width:1px;align-self:stretch;min-height:120px;background:repeating-linear-gradient(180deg,
+  var(--line-strong) 0 5px,transparent 5px 11px);position:relative;margin-left:0}
+.edge i{position:absolute;left:-4px;top:0;width:9px;height:1px;background:var(--line-strong)}
+.edge span{position:absolute;left:12px;top:-2px;writing-mode:vertical-rl;color:var(--text-4);
+  letter-spacing:.18em;font-size:9px}
+.capsule--open{width:320px;height:44px;border-radius:22px 0 0 22px;display:flex;align-items:center;gap:8px;
+  padding:0 8px 0 7px;position:relative;
+  background:linear-gradient(180deg,#1A1D21,#121417);
+  border:1px solid var(--line-strong);border-right:none;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06),-16px 8px 34px -14px rgba(0,0,0,.9);
+  transition:width .2s cubic-bezier(.2,.8,.2,1),opacity .16s}
+.dock:not(.is-collapsed) .capsule--line{display:none}
+.dock.is-collapsed .capsule--open{display:none}
+.capsule__role{position:relative;width:24px;height:24px;flex:none;display:flex;align-items:center;justify-content:center;
+  border-radius:var(--r-btn);background:var(--surface-3);border:1px solid var(--line-strong);color:var(--text-2)}
+.capsule__role .dot{position:absolute;right:-2px;bottom:-2px}
+.capsule__title{flex:1;min-width:0;font-size:12px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.capsule__cd{font-size:16px;color:var(--amber);letter-spacing:.01em;line-height:1}
+.vsep{width:1px;height:18px;background:var(--line-strong);flex:none}
+.ibtn{width:20px;height:20px;flex:none;display:flex;align-items:center;justify-content:center;border-radius:var(--r-btn);
+  border:1px solid transparent;background:transparent;color:var(--text-3);cursor:pointer;transition:.14s}
+.ibtn:hover{background:var(--surface-3);border-color:var(--line-strong);color:var(--text)}
+.ibtn--ok{width:26px;height:26px;border-color:var(--line-strong);background:var(--surface-3);color:var(--text-2)}
+.ibtn--ok:hover{color:var(--void);background:var(--amber);border-color:var(--amber);box-shadow:0 0 14px rgba(255,155,47,.4)}
+.ibtn--ok.is-ok{color:var(--green);border-color:rgba(95,211,160,.45);background:var(--green-dim)}
+.capsule--line{display:block;width:320px;height:6px;border:none;cursor:pointer;padding:0;
+  border-radius:3px 0 0 3px;
+  background:linear-gradient(90deg,rgba(255,155,47,0),rgba(255,155,47,.5) 55%,rgba(255,182,94,.95));
+  box-shadow:0 0 18px rgba(255,155,47,.32),0 0 46px rgba(255,155,47,.12);
+  animation:breathe 4.2s ease-in-out infinite}
+
+
+/* --- panel --- */
+.panel{width:680px;height:460px;border-radius:var(--r-panel);overflow:hidden;display:flex;flex-direction:column;
+  background:var(--bg);border:1px solid var(--line-strong);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 40px 80px -20px rgba(0,0,0,.85),0 0 0 1px rgba(0,0,0,.5);
+  animation:pop .2s cubic-bezier(.2,.8,.2,1)}
+.panel__cmd{height:44px;flex:none;display:flex;align-items:center;gap:8px;padding:0 12px;
+  background:linear-gradient(180deg,#1A1D21,#141619);border-bottom:1px solid var(--line)}
+.prompt{color:var(--amber);display:flex;align-items:center}
+.cmdinput{flex:1;min-width:0;height:28px;background:transparent;border:none;outline:none;color:var(--text);
+  font-family:var(--f-ui);font-size:12.5px}
+.cmdinput::placeholder{color:var(--text-4)}
+.chip{height:22px;padding:0 9px;display:flex;align-items:center;border-radius:var(--r-chip);font-size:10.5px;
+  color:var(--text-3);background:var(--surface-2);border:1px solid var(--line);cursor:pointer;transition:.14s}
+.chip.is-on{color:var(--amber-hi);border-color:var(--amber-lo);background:var(--amber-dim)}
+.kbd{font-family:var(--f-mono);font-size:9.5px;color:var(--text-4);background:var(--surface-2);
+  border:1px solid var(--line);border-radius:3px;padding:2px 5px;line-height:1.2}
+.panel__body{flex:1;display:flex;min-height:0}
+.rail{width:180px;flex:none;border-right:1px solid var(--line);display:flex;flex-direction:column;
+  background:var(--surface);padding:12px 10px}
+.rail__head{padding:0 8px 10px}
+.rrow{display:flex;align-items:center;gap:9px;height:44px;padding:0 8px;border-radius:var(--r-card);cursor:pointer;
+  border-left:2px solid transparent;transition:.14s}
+.rrow:hover{background:var(--surface-2)}
+.rrow.is-on{background:var(--surface-2);border-left-color:var(--amber)}
+.rrow__ic{width:26px;height:26px;flex:none;display:flex;align-items:center;justify-content:center;
+  border-radius:var(--r-btn);background:var(--surface-3);border:1px solid var(--line);color:var(--text-3)}
+.rrow.is-on .rrow__ic{color:var(--amber);border-color:var(--amber-lo);background:var(--amber-dim)}
+.rrow__txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.rrow__txt b{font-size:12px;font-weight:600;color:var(--text-2)}
+.rrow.is-on .rrow__txt b{color:var(--text)}
+.rrow__txt i{font-style:normal;font-size:9.5px;color:var(--text-4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.badge{min-width:16px;height:16px;padding:0 4px;border-radius:8px;display:flex;align-items:center;justify-content:center;
+  font-size:9.5px;color:var(--void);background:var(--amber);font-weight:600}
+.rail__foot{margin-top:auto;padding:12px 8px 4px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
+.kbdrow{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text-4)}
+.kbdlabel{margin-left:2px}
+.content{flex:1;min-width:0;display:flex;flex-direction:column}
+.chead{height:46px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 14px;
+  border-bottom:1px solid var(--line)}
+.chead__l{display:flex;align-items:baseline;gap:9px}
+.chead__l b{font-size:13px;font-weight:600}
+.chead__sub{font-size:10px;color:var(--text-4)}
+.seg{display:flex;border:1px solid var(--line);border-radius:var(--r-btn);overflow:hidden;background:var(--surface)}
+.seg button{height:24px;padding:0 10px;border:none;background:transparent;color:var(--text-3);font-size:10.5px;
+  font-family:var(--f-ui);cursor:pointer;border-right:1px solid var(--line)}
+.seg button:last-child{border-right:none}
+.seg button.is-on{background:var(--surface-3);color:var(--text)}
+.plist{flex:1;overflow:auto;padding:12px 14px;display:flex;flex-direction:column;gap:6px}
+.pcard{height:46px;flex:none;display:flex;align-items:center;gap:10px;padding:0 12px 0 0;border-radius:var(--r-card);
+  background:var(--surface);border:1px solid var(--line);cursor:pointer;position:relative;overflow:hidden;transition:.15s}
+.pcard:hover{border-color:var(--line-strong);background:var(--surface-2)}
+.pcard__time{width:56px;flex:none;text-align:right;font-size:10.5px;color:var(--text-4);padding-left:2px}
+.pcard__rule{width:1px;height:22px;background:var(--line);flex:none}
+.pcheck{width:16px;height:16px;flex:none;border-radius:4px;border:1px solid var(--line-strong);
+  display:flex;align-items:center;justify-content:center;color:transparent;background:var(--surface-2);transition:.15s}
+.pcheck svg{width:11px;height:11px}
+.pcard__main{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.pcard__main b{font-size:12px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pcard__main i{font-style:normal;font-size:9.5px;color:var(--text-4)}
+.pcard__tag{font-size:9.5px;color:var(--text-4);flex:none;padding-right:2px}
+.pcard.is-now{border-color:var(--amber-lo);background:linear-gradient(90deg,rgba(255,155,47,.09),rgba(255,155,47,.015))}
+.pcard.is-now::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--amber)}
+.pcard.is-now .pcheck{border-color:var(--amber);box-shadow:0 0 10px rgba(255,155,47,.28)}
+.pcard.is-now .pcard__tag{color:var(--amber)}
+.pcard.is-done .pcheck{background:var(--green-dim);border-color:rgba(95,211,160,.45);color:var(--green)}
+.pcard.is-done .pcard__main b{color:var(--text-3);text-decoration:line-through;text-decoration-color:var(--text-4)}
+.pfoot{height:26px;flex:none;display:flex;align-items:center;gap:12px;padding:0 12px;background:var(--surface);
+  border-top:1px solid var(--line);font-size:9.5px;color:var(--text-4)}
+.pfoot__g{display:flex;align-items:center;gap:6px;white-space:nowrap}
+.pfoot__g em{color:var(--text-3);font-size:9.5px}
+.pfoot__s{flex:1}
+
+/* --- L3 --- */
+.wallpaper{width:760px;height:340px;border-radius:8px;border:1px solid var(--line);position:relative;overflow:hidden;
+  display:flex;align-items:flex-start;justify-content:center;padding-top:26px;
+  background:radial-gradient(80% 120% at 20% 0%,#1A2028,#0B0D10 70%)}
+.wallpaper::after{content:"屏幕中上 · 置顶悬浮";position:absolute;left:14px;bottom:12px;font-size:9px;color:var(--text-4);
+  letter-spacing:.16em;text-transform:uppercase;font-family:var(--f-mono)}
+.l3{width:420px;height:220px;border-radius:var(--r-panel);position:relative;overflow:hidden;
+  display:flex;flex-direction:column;padding:16px 18px 14px;
+  background:linear-gradient(180deg,#211A12,#15130F 60%,#111214);
+  border:2px solid var(--amber);
+  box-shadow:0 0 0 1px rgba(0,0,0,.7),0 0 28px rgba(255,155,47,.3),0 0 70px rgba(255,155,47,.14),
+    0 34px 60px -18px rgba(0,0,0,.9),inset 0 1px 0 rgba(255,255,255,.07);
+  animation:pop .22s cubic-bezier(.2,.8,.2,1)}
+.l3__hazard{position:absolute;left:0;right:0;top:0;height:3px;
+  background:repeating-linear-gradient(115deg,var(--amber) 0 8px,#1A1208 8px 20px);
+  animation:hazard 1.6s linear infinite}
+.l3__head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.l3__role{display:flex;align-items:center;gap:8px}
+.l3__ic{width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:var(--r-btn);
+  color:var(--amber);background:var(--amber-dim);border:1px solid var(--amber-lo)}
+.l3__role b{font-size:12.5px;font-weight:600}
+.l3__role i{font-style:normal;font-size:9px;color:var(--text-4);letter-spacing:.14em}
+.l3__tier{display:flex;align-items:center;gap:6px;height:20px;padding:0 8px;border-radius:var(--r-chip);
+  font-size:9.5px;font-weight:600;letter-spacing:.1em;color:var(--red);
+  background:var(--red-dim);border:1px solid rgba(255,90,60,.45)}
+.l3__tier i{width:5px;height:5px;border-radius:50%;background:var(--red);box-shadow:0 0 8px var(--red)}
+.l3__title{font-size:15px;font-weight:600;letter-spacing:.01em;margin-bottom:7px}
+.l3__desc{font-size:11.5px;line-height:1.62;color:var(--text-2);max-width:340px}
+.l3__metric{margin-top:auto;font-size:9.5px;color:var(--text-4);padding-bottom:12px}
+.l3__acts{display:flex;gap:8px;border-top:1px solid rgba(255,155,47,.18);padding-top:12px}
+.btn{height:34px;padding:0 14px;display:flex;align-items:center;gap:7px;border-radius:var(--r-btn);cursor:pointer;
+  font-family:var(--f-ui);font-size:11.5px;color:var(--text-2);background:var(--surface-3);
+  border:1px solid var(--line-strong);transition:.15s}
+.btn:hover{color:var(--text);border-color:var(--text-4)}
+.btn--primary{color:var(--void);background:var(--amber);border-color:var(--amber);font-weight:600;
+  box-shadow:0 0 18px rgba(255,155,47,.28)}
+.btn--primary:hover{background:var(--amber-hi);color:var(--void)}
+.btn--ghost{background:transparent;border-color:var(--line);color:var(--text-3)}
+.l3.is-done{border-color:var(--green);box-shadow:0 0 28px rgba(95,211,160,.22),0 34px 60px -18px rgba(0,0,0,.9)}
+.l3.is-done .l3__hazard{background:var(--green);animation:none}
+.l3.is-done .l3__tier{color:var(--green);background:var(--green-dim);border-color:rgba(95,211,160,.45)}
+.l3.is-done .l3__tier i{background:var(--green);box-shadow:0 0 8px var(--green)}
+.l3.is-done .l3__title{color:var(--text-3);text-decoration:line-through;text-decoration-color:var(--text-4)}
+
+/* --- desktop / toast --- */
+.desk{width:760px;height:340px;border-radius:8px;border:1px solid var(--line);overflow:hidden;position:relative;
+  display:flex;flex-direction:column}
+.desk__wall{flex:1;background:
+  radial-gradient(70% 90% at 75% 15%,#243038,#141A1F 55%,#0C0F12),
+  linear-gradient(180deg,#151A1F,#0A0C0E)}
+.toast{position:absolute;right:18px;bottom:46px;width:364px;height:132px;border-radius:var(--r-toast);
+  background:var(--win-surface);border:1px solid var(--win-line);color:var(--win-text);
+  padding:12px 14px 12px;display:flex;flex-direction:column;
+  box-shadow:0 18px 40px -12px rgba(0,0,0,.8);animation:slide .26s cubic-bezier(.2,.8,.2,1)}
+.toast__top{display:flex;align-items:center;gap:7px}
+.toast__appic{width:16px;height:16px;display:flex;align-items:center;justify-content:center;border-radius:3px;
+  color:var(--win-text);background:#2E2E2E}
+.toast__appic svg{width:11px;height:11px}
+.toast__app{font-size:11.5px;color:var(--win-text-2)}
+.toast__time{margin-left:auto;font-size:9.5px;color:#8A8A8A}
+.toast__x{width:20px;height:20px;display:flex;align-items:center;justify-content:center;border:none;background:transparent;
+  color:#9A9A9A;cursor:pointer;border-radius:3px}
+.toast__x:hover{background:#2E2E2E;color:#fff}
+.toast__title{font-size:13.5px;font-weight:600;margin-top:9px;letter-spacing:.01em}
+.toast__body{font-size:12px;color:var(--win-text-2);margin-top:4px}
+.toast__acts{margin-top:auto;display:flex;gap:8px}
+.tbtn{height:28px;padding:0 14px;border-radius:4px;border:1px solid #3A3A3A;background:#2A2A2A;color:#E8E8E8;
+  font-family:var(--f-ui);font-size:11.5px;cursor:pointer}
+.tbtn:hover{background:#343434}
+.taskbar{height:34px;flex:none;display:flex;align-items:center;gap:8px;padding:0 12px;
+  background:rgba(24,26,29,.92);border-top:1px solid var(--line)}
+.taskbar__start{width:24px;height:24px;display:flex;align-items:center;justify-content:center;color:var(--amber);
+  border:1px solid var(--line-strong);border-radius:var(--r-btn);background:var(--surface)}
+.taskbar__pill,.taskbar__sp{display:flex}
+.taskbar__pill{width:24px;height:24px;align-items:center;justify-content:center;color:var(--text-3);
+  background:var(--surface-2);border-radius:var(--r-btn);border:1px solid var(--line)}
+.taskbar__sp{flex:1}
+.taskbar__t{font-size:10.5px;color:var(--text-3)}
+</style>
+</head>
+<body>
+<div class="bench">
+  <header class="topbar">
+    <div class="brand"><span class="brand__mark"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25"><circle cx="8" cy="8" r="6.1"/><path d="M8 1.9v3.2M8 10.9v3.2M1.9 8h3.2M10.9 8h3.2"/><circle cx="8" cy="8" r="1.35" fill="currentColor" stroke="none"/></svg></span><span><span class="brand__t">AAIL</span><br><span class="brand__s">Tool Prototype</span></span></div>
+    <nav class="tabs"><button class="tab is-on" data-tab="s1"><span class="tab__n">01</span>胶囊 · 展开</button><button class="tab" data-tab="s2"><span class="tab__n">02</span>胶囊 · 折叠</button><button class="tab" data-tab="s3"><span class="tab__n">03</span>面板态</button><button class="tab" data-tab="s4"><span class="tab__n">04</span>L3 强提醒</button><button class="tab" data-tab="s5"><span class="tab__n">05</span>L2 系统通知</button></nav>
+    <div class="zoomer"><button data-zoom="1" class="is-on">1×</button><button data-zoom="1.5">1.5×</button><button data-zoom="2">2×</button></div>
+  </header>
+  <div class="main">
+    <div class="stage"><div class="stage__inner"><div id="viewport">
+      <section class="scene is-active" data-scene="s1"><div class="wrap"><div class="scene__tag"><b>01 胶囊 · 展开</b><i>贴屏幕右边缘，1:1 实寸</i></div><div class="dock" id="dock">
+<div class="capsule capsule--open" id="capOpen">
+  <span class="capsule__role"><span class="capsule__ic"><span class="ic" style="width:14px;height:14px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25"><circle cx="8" cy="3.1" r="2.1"/><circle cx="3.1" cy="12.9" r="2.1"/><circle cx="12.9" cy="12.9" r="2.1"/><path d="M8 5.2v2.2M8 7.4H4.7c-.9 0-1.6.7-1.6 1.6v1.8M8 7.4h3.3c.9 0 1.6.7 1.6 1.6v1.8"/></svg></span></span><i class="dot dot--busy"></i></span>
+  <span class="capsule__title">API 限流方案评审</span>
+  <span class="capsule__cd"><em class="mono" id="cd1">12:04</em></span>
+  <span class="vsep"></span>
+  <button class="ibtn ibtn--ok" data-act="done" title="标记完成"><span class="ic" style="width:13px;height:13px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 8.4 6.5 11.7 12.8 4.7"/></svg></span></button>
+  <button class="ibtn" data-act="collapse" title="折叠为光线"><span class="ic" style="width:13px;height:13px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6.2 3.4 10.8 8l-4.6 4.6"/></svg></span></button>
+</div>
+<button class="capsule capsule--line" id="capLine" title="点击展开" aria-hidden="true"></button><div class="edge" aria-hidden="true"><i></i><span class="mlabel">屏幕右边缘</span></div></div><div class="stage__callout">鼠标悬停 320ms 后由「光线」展开；点击箭头回落到 S2。倒计时每秒递减，仅数字跳动，不闪烁整条胶囊。</div></div></section>
+      <section class="scene" data-scene="s2"><div class="wrap"><div class="scene__tag"><b>02 胶囊 · 折叠</b><i>静默驻留，只剩一条光带</i></div><div class="dock is-collapsed">
+<div class="capsule capsule--open" id="capOpen">
+  <span class="capsule__role"><span class="capsule__ic"><span class="ic" style="width:14px;height:14px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25"><circle cx="8" cy="3.1" r="2.1"/><circle cx="3.1" cy="12.9" r="2.1"/><circle cx="12.9" cy="12.9" r="2.1"/><path d="M8 5.2v2.2M8 7.4H4.7c-.9 0-1.6.7-1.6 1.6v1.8M8 7.4h3.3c.9 0 1.6.7 1.6 1.6v1.8"/></svg></span></span><i class="dot dot--busy"></i></span>
+  <span class="capsule__title">API 限流方案评审</span>
+  <span class="capsule__cd"><em class="mono" id="cd1">12:04</em></span>
+  <span class="vsep"></span>
+  <button class="ibtn ibtn--ok" data-act="done" title="标记完成"><span class="ic" style="width:13px;height:13px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 8.4 6.5 11.7 12.8 4.7"/></svg></span></button>
+  <button class="ibtn" data-act="collapse" title="折叠为光线"><span class="ic" style="width:13px;height:13px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6.2 3.4 10.8 8l-4.6 4.6"/></svg></span></button>
+</div>
+<button class="capsule capsule--line" id="capLine" title="点击展开" aria-hidden="true"></button><div class="edge" aria-hidden="true"><i></i><span class="mlabel">屏幕右边缘</span></div></div><div class="stage__callout">无文案、无数字、无角标；仅 6px 呼吸光带（4.2s 一个周期，透明度 0.62↔1）。它只说一件事：我还活着。</div></div></section>
+      <section class="scene" data-scene="s3"><div class="wrap"><div class="scene__tag"><b>03 面板态</b><i>680 × 460 · 无系统标题栏</i></div>
+<div class="panel">
+  <div class="panel__cmd">
+    <span class="prompt"><span class="ic" style="width:12px;height:12px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6.2 3.4 10.8 8l-4.6 4.6"/></svg></span></span>
+    <input class="cmdinput" placeholder="输入计划，或直接问角色…" aria-label="命令输入">
+    <span class="chip is-on">计划</span><span class="chip">提问</span>
+    <span class="kbd">Enter</span>
+  </div>
+  <div class="panel__body">
+    <aside class="rail">
+      <div class="mlabel rail__head">角色 / ROLES</div>
+      
+<div class="rrow" data-role="编排">
+  <span class="rrow__ic"><span class="ic" style="width:15px;height:15px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25"><circle cx="8" cy="3.1" r="2.1"/><circle cx="3.1" cy="12.9" r="2.1"/><circle cx="12.9" cy="12.9" r="2.1"/><path d="M8 5.2v2.2M8 7.4H4.7c-.9 0-1.6.7-1.6 1.6v1.8M8 7.4h3.3c.9 0 1.6.7 1.6 1.6v1.8"/></svg></span></span>
+  <span class="rrow__txt"><b>编排</b><i>3 个计划 · 1 进行中</i></span>
+  <span class="rrow__meta"><i class="dot dot--busy"></i></span>
+</div>
+      
+<div class="rrow" data-role="哨兵">
+  <span class="rrow__ic"><span class="ic" style="width:15px;height:15px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25"><path d="M1.5 8s2.5-4.1 6.5-4.1S14.5 8 14.5 8s-2.5 4.1-6.5 4.1S1.5 8 1.5 8Z"/><circle cx="8" cy="8" r="1.85"/></svg></span></span>
+  <span class="rrow__txt"><b>哨兵</b><i>健康监测 · 每 30 分钟</i></span>
+  <span class="rrow__meta"><span class="badge mono">2</span></span>
+</div>
+      
+<div class="rrow" data-role="归档">
+  <span class="rrow__ic"><span class="ic" style="width:15px;height:15px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25"><path d="M8 1.7 14.3 5 8 8.3 1.7 5 8 1.7Z"/><path d="M2.7 8 8 10.7 13.3 8"/><path d="M2.7 11 8 13.7 13.3 11"/></svg></span></span>
+  <span class="rrow__txt"><b>归档</b><i>自动归档 · 22:00</i></span>
+  <span class="rrow__meta"><i class="dot dot--idle"></i></span>
+</div>
+      <div class="rail__foot">
+        <div class="mlabel">快捷</div>
+        <div class="kbdrow"><span class="kbd">Ctrl</span><span class="kbd">K</span><span class="kbdlabel">唤起面板</span></div>
+        <div class="kbdrow"><span class="kbd">Esc</span><span class="kbdlabel">收起为胶囊</span></div>
+      </div>
+    </aside>
+    <section class="content">
+      <header class="chead">
+        <div class="chead__l"><b>编排</b><span class="chead__sub mono">今天 · 第 3 项进行中</span></div>
+        <div class="seg"><button class="is-on">今天</button><button>本周</button></div>
+      </header>
+      <div class="plist">
+        
+<div class="pcard is-done" role="checkbox" aria-checked="true">
+  <span class="pcard__time mono">09:30</span>
+  <span class="pcard__rule"></span>
+  <span class="pcheck"><span class="ic" style="width:11px;height:11px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 8.4 6.5 11.7 12.8 4.7"/></svg></span></span>
+  <span class="pcard__main"><b>整理昨日会议纪要</b><i>归档 · 已同步到本地</i></span>
+  <span class="pcard__tag mono">45m</span>
+</div>
+        
+<div class="pcard is-now" role="checkbox" aria-checked="false">
+  <span class="pcard__time mono">11:00</span>
+  <span class="pcard__rule"></span>
+  <span class="pcheck"><span class="ic" style="width:11px;height:11px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 8.4 6.5 11.7 12.8 4.7"/></svg></span></span>
+  <span class="pcard__main"><b>API 限流方案评审</b><i>编排 · 进行中</i></span>
+  <span class="pcard__tag mono">now</span>
+</div>
+        
+<div class="pcard " role="checkbox" aria-checked="false">
+  <span class="pcard__time mono">14:30</span>
+  <span class="pcard__rule"></span>
+  <span class="pcheck"><span class="ic" style="width:11px;height:11px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 8.4 6.5 11.7 12.8 4.7"/></svg></span></span>
+  <span class="pcard__main"><b>竞品拆解 · 复盘</b><i>编排 · 已排期</i></span>
+  <span class="pcard__tag mono">12:04</span>
+</div>
+        
+<div class="pcard " role="checkbox" aria-checked="false">
+  <span class="pcard__time mono">16:00</span>
+  <span class="pcard__rule"></span>
+  <span class="pcheck"><span class="ic" style="width:11px;height:11px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 8.4 6.5 11.7 12.8 4.7"/></svg></span></span>
+  <span class="pcard__main"><b>周报草稿</b><i>归档 · 自动汇总</i></span>
+  <span class="pcard__tag mono">30m</span>
+</div>
+      </div>
+    </section>
+  </div>
+  <footer class="pfoot">
+    <span class="pfoot__g"><i class="dot dot--live"></i>已连接</span>
+    <span class="pfoot__g"><span class="ic" style="width:11px;height:11px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25"><circle cx="8" cy="8" r="6.1"/><path d="M8 4.3V8l2.6 1.6" stroke-linecap="round"/></svg></span>下次触发 <em class="mono">14:30:00</em></span>
+    <span class="pfoot__g"><span class="ic" style="width:11px;height:11px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25"><path d="M8 1.7 13.4 3.8v4.1c0 3.2-2.3 5.5-5.4 6.4-3.1-.9-5.4-3.2-5.4-6.4V3.8L8 1.7Z"/></svg></span>通知 · 允许</span>
+    <span class="pfoot__s"></span>
+    <span class="pfoot__g"><span class="ic" style="width:11px;height:11px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25"><rect x="1.8" y="4.3" width="12.4" height="7.4" rx="1.5"/><path d="M4.5 8h1.8" stroke-linecap="round"/></svg></span><em class="mono">%APPDATA%\aail</em></span>
+  </footer>
+</div><div class="stage__callout">自定义窗体：无 Windows 标题栏，整条命令栏为拖拽区。左栏管角色、右栏管内容，底部状态栏常驻系统信息。</div></div></section>
+      <section class="scene" data-scene="s4"><div class="wrap"><div class="scene__tag"><b>04 L3 强提醒</b><i>420 × 220 · 置顶于屏幕中上</i></div><div class="wallpaper">
+<div class="l3" id="l3">
+  <div class="l3__hazard"></div>
+  <div class="l3__head">
+    <span class="l3__role"><span class="l3__ic"><span class="ic" style="width:16px;height:16px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25"><path d="M1.5 8s2.5-4.1 6.5-4.1S14.5 8 14.5 8s-2.5 4.1-6.5 4.1S1.5 8 1.5 8Z"/><circle cx="8" cy="8" r="1.85"/></svg></span></span><b>哨兵</b><i class="mono">SENTINEL</i></span>
+    <span class="l3__tier"><i></i>L3 · 强制提醒</span>
+  </div>
+  <h2 class="l3__title">起身活动 · 颈椎复位</h2>
+  <p class="l3__desc">已连续 82 分钟未离座。此提醒置顶保持，直到你做出回应。</p>
+  <div class="l3__metric mono" data-metric>触发 14:12:30 · 已延后 0 次</div>
+  <div class="l3__acts">
+    <button class="btn btn--primary" data-act="ack"><span class="ic" style="width:13px;height:13px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 8.4 6.5 11.7 12.8 4.7"/></svg></span>完成</button>
+    <button class="btn" data-act="delay"><span class="ic" style="width:13px;height:13px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25"><circle cx="8" cy="8" r="6.1"/><path d="M8 4.3V8l2.6 1.6" stroke-linecap="round"/></svg></span>延后 5 分钟</button>
+    <button class="btn btn--ghost" data-act="later"><span class="ic" style="width:13px;height:13px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25"><path d="M4.1 6.7a3.9 3.9 0 0 1 7.8 0c0 3 1.3 3.9 1.3 3.9H2.8s1.3-.9 1.3-3.9Z"/><path d="M6.5 12.6a1.75 1.75 0 0 0 3 0" stroke-linecap="round"/></svg></span>稍后提醒</button>
+  </div>
+</div></div><div class="stage__callout">唯一的「强制」层：顶部斜纹警示条 + 2px 琥珀描边 + 外发光环 + 缩放入场。必须显式回应才消失。</div></div></section>
+      <section class="scene" data-scene="s5"><div class="wrap"><div class="scene__tag"><b>05 L2 系统通知</b><i>Windows 11 toast · 364 × 132</i></div>
+<div class="desk">
+  <div class="desk__wall"></div>
+  <div class="toast">
+    <div class="toast__top">
+      <span class="toast__appic"><span class="ic" style="width:12px;height:12px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25"><circle cx="8" cy="8" r="6.1"/><path d="M8 1.9v3.2M8 10.9v3.2M1.9 8h3.2M10.9 8h3.2"/><circle cx="8" cy="8" r="1.35" fill="currentColor" stroke="none"/></svg></span></span>
+      <span class="toast__app">AAIL</span>
+      <span class="toast__time mono">14:25</span>
+      <button class="toast__x" title="关闭"><span class="ic" style="width:11px;height:11px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M4.2 4.2l7.6 7.6M11.8 4.2l-7.6 7.6"/></svg></span></button>
+    </div>
+    <div class="toast__title">下一个计划 5 分钟后开始</div>
+    <div class="toast__body">编排 · API 限流方案评审</div>
+    <div class="toast__acts">
+      <button class="tbtn">打开面板</button><button class="tbtn">延后</button>
+    </div>
+  </div>
+  <div class="taskbar">
+    <span class="taskbar__start"><span class="ic" style="width:13px;height:13px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25"><circle cx="8" cy="8" r="6.1"/><path d="M8 1.9v3.2M8 10.9v3.2M1.9 8h3.2M10.9 8h3.2"/><circle cx="8" cy="8" r="1.35" fill="currentColor" stroke="none"/></svg></span></span>
+    <span class="taskbar__pill"><span class="ic" style="width:13px;height:13px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25"><path d="M1.5 8s2.5-4.1 6.5-4.1S14.5 8 14.5 8s-2.5 4.1-6.5 4.1S1.5 8 1.5 8Z"/><circle cx="8" cy="8" r="1.85"/></svg></span></span>
+    <span class="taskbar__sp"></span>
+    <span class="taskbar__t mono">14:25</span>
+  </div>
+</div><div class="stage__callout">交给系统画：不抢焦点、无描边发光、8 秒后自动落入操作中心。与 L3 的差别是「不打断」——这正是分级的意义。</div></div></section>
+    </div></div></div>
+    <aside class="side">
+      <div class="side__h"><b id="sideTitle">01 胶囊 · 展开</b><p id="sideNote">贴屏幕右边缘，1:1 实寸</p></div>
+      <div class="side__b">
+        <dl class="kv" data-spec="s1"><dt>尺寸</dt><dd>320 × 44 px</dd><dt>圆角</dt><dd>22 / 0 / 0 / 22（右贴边不描边）</dd><dt>内边距</dt><dd>左 7 · 右 8 · 图标间距 8</dd><dt>倒计时</dt><dd>Cascadia Mono 16px / 琥珀 #FF9B2F</dd><dt>标题</dt><dd>12px 常规 / 单行省略</dd><dt>按钮</dt><dd>26×26 与 20×20 · 圆角 5</dd><dt>动效</dt><dd>展开 200ms cubic-bezier(.2,.8,.2,1)</dd></dl>
+        <dl class="kv" data-spec="s2" hidden><dt>尺寸</dt><dd>320 × 6 px</dd><dt>圆角</dt><dd>3 / 0 / 0 / 3</dd><dt>取色</dt><dd>琥珀渐变 0% → 55% → 100%</dd><dt>发光</dt><dd>0 0 18px rgba(255,155,47,.35)</dd><dt>动效</dt><dd>4.2s 呼吸 · 可被 prefers-reduced-motion 关闭</dd><dt>点击区</dt><dd>热区扩到 320 × 14，不改变视觉尺寸</dd></dl>
+        <dl class="kv" data-spec="s3" hidden><dt>尺寸</dt><dd>680 × 460 px · 圆角 10</dd><dt>命令栏</dt><dd>44px · 输入 12.5px</dd><dt>左栏</dt><dd>180px · 角色行 44px</dd><dt>卡片</dt><dd>高 46px · 圆角 6 · 间距 6</dd><dt>状态栏</dt><dd>26px · 9.5px 常驻信息</dd><dt>阴影</dt><dd>0 40px 80px -20px rgba(0,0,0,.85)</dd><dt>动效</dt><dd>pop 180ms · 勾选 120ms</dd></dl>
+        <dl class="kv" data-spec="s4" hidden><dt>尺寸</dt><dd>420 × 220 px · 圆角 10</dd><dt>警示条</dt><dd>3px 斜纹 45° 琥珀/暗底</dd><dt>描边</dt><dd>2px #FF9B2F + 外发光</dd><dt>标题</dt><dd>15px / 600</dd><dt>按钮</dt><dd>高 34 · 主按钮实心琥珀</dd><dt>动效</dt><dd>pop 220ms · 斜纹 1.6s 循环位移</dd></dl>
+        <dl class="kv" data-spec="s5" hidden><dt>尺寸</dt><dd>364 × 132 px · 圆角 8</dd><dt>底色</dt><dd>#202020（跟随 Windows 主题）</dd><dt>应用名</dt><dd>11.5px · 图标 16px</dd><dt>文本</dt><dd>标题 13.5 / 正文 12</dd><dt>按钮</dt><dd>高 28 · 文字按钮</dd><dt>动效</dt><dd>系统接管 · 从右下滑入</dd></dl>
+        <div class="side__note"><b>三级提醒分级规则</b><br>L1 胶囊 / 光线：不打断，仅倒计时，0 次焦点抢占。<br>L2 系统通知：不抢焦点，8s 后入操作中心。<br>L3 强提醒：置顶 + 必须显式回应，唯一使用红光与警示斜纹的层级。</div>
+      </div>
+      <div class="hint">键盘 <kbd>1</kbd>–<kbd>5</kbd> 切换状态 · <kbd>1</kbd> 中可点箭头折叠为光线</div>
+    </aside>
+  </div>
+</div>
+<script>
+(function(){
+  var tabs=[].slice.call(document.querySelectorAll("[data-tab]"));
+  var scenes=[].slice.call(document.querySelectorAll(".scene"));
+  var specs=[].slice.call(document.querySelectorAll("[data-spec]"));
+  var title=document.getElementById("sideTitle"), note=document.getElementById("sideNote");
+  function pad(n){return (n<10?"0":"")+n}
+  function go(id){
+    tabs.forEach(function(t){t.classList.toggle("is-on",t.getAttribute("data-tab")===id)});
+    scenes.forEach(function(s){s.classList.toggle("is-active",s.getAttribute("data-scene")===id)});
+    specs.forEach(function(s){s.hidden=s.getAttribute("data-spec")!==id});
+    var sc=scenes.filter(function(x){return x.getAttribute("data-scene")===id})[0];
+    if(sc){title.textContent=sc.querySelector(".scene__tag b").textContent;
+      note.textContent=sc.querySelector(".scene__tag i").textContent;}
+  }
+  var h=(location.hash||"").replace("#","");
+  if(h&&document.querySelector('[data-scene="'+h+'"]')){go(h)}
+  tabs.forEach(function(t){t.addEventListener("click",function(){go(t.getAttribute("data-tab"))})});
+  document.addEventListener("keydown",function(e){if(e.key>="1"&&e.key<="5"){go("s"+e.key)}});
+  [].slice.call(document.querySelectorAll("[data-zoom]")).forEach(function(b){
+    b.addEventListener("click",function(){
+      [].slice.call(document.querySelectorAll("[data-zoom]")).forEach(function(x){x.classList.remove("is-on")});
+      b.classList.add("is-on");document.getElementById("viewport").style.zoom=b.getAttribute("data-zoom");
+    });
+  });
+  var sec=724, cd=document.getElementById("cd1");
+  setInterval(function(){if(sec>0)sec--;cd.textContent=pad(Math.floor(sec/60))+":"+pad(sec%60)},1000);
+  var dock=document.getElementById("dock");
+  var capOpen=document.getElementById("capOpen"), capLine=document.getElementById("capLine");
+  capOpen.querySelector("[data-act=collapse]").addEventListener("click",function(){dock.classList.add("is-collapsed")});
+  capLine.addEventListener("click",function(){dock.classList.remove("is-collapsed")});
+  var okBtn=capOpen.querySelector("[data-act=done]");
+  okBtn.addEventListener("click",function(){okBtn.classList.toggle("is-ok")});
+  [].slice.call(document.querySelectorAll(".pcard")).forEach(function(c){
+    c.addEventListener("click",function(){
+      var on=c.classList.toggle("is-done");c.setAttribute("aria-checked",on?"true":"false");
+      if(on)c.classList.remove("is-now");
+    });
+  });
+  var l3=document.getElementById("l3"), metric=l3.querySelector("[data-metric]"), delays=0;
+  l3.querySelector("[data-act=delay]").addEventListener("click",function(){delays++;metric.textContent="触发 14:12:30 · 已延后 "+delays+" 次"});
+  l3.querySelector("[data-act=ack]").addEventListener("click",function(){l3.classList.add("is-done");metric.textContent="已于 14:13:02 确认完成"});
+  l3.querySelector("[data-act=later]").addEventListener("click",function(){metric.textContent="触发 14:12:30 · 已转入操作中心"});
+})();
+</script>
+</body>
+</html>

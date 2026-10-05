@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>AAIL 状态与交互说明</title>
+<style>
+  :root{
+    --bg:#f4f5f7; --card:#ffffff; --line:#eceef2; --line-strong:#dfe2e8;
+    --text:#1f2329; --text-2:#646a73; --text-3:#8f959e; --text-4:#b7bcc4;
+    --brand:#2b6cf6; --brand-dim:#eaf1fe;
+    --green:#22b07d; --orange:#f59e0b; --red:#f04a4a;
+    --mono:"Cascadia Mono",Consolas,monospace;
+    --sans:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;width:1600px;height:1000px;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--sans)}
+  .sheet{padding:18px 26px;display:flex;flex-direction:column;gap:12px;height:1000px}
+  header{display:flex;align-items:baseline;gap:14px}
+  h1{margin:0;font-size:19px;font-weight:700;letter-spacing:-.01em}
+  .sub{font-size:12px;color:var(--text-3)}
+  .tagline{margin-left:auto;font-size:11px;color:var(--text-3);font-family:var(--mono)}
+  .grid{display:grid;grid-template-columns:620px 1fr;grid-template-rows:512px 350px;gap:12px;flex:1;min-height:0}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:13px 15px;display:flex;flex-direction:column;min-height:0}
+  .ct{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+  .ct h2{margin:0;font-size:12.5px;font-weight:600}
+  .ct .n{width:18px;height:18px;border-radius:5px;background:var(--brand-dim);color:var(--brand);font-size:10px;display:grid;place-items:center;font-weight:700}
+  .ct .cn{font-size:10.5px;color:var(--text-4);margin-left:auto;font-family:var(--mono)}
+
+  .desk{position:relative;flex:1;border-radius:8px;overflow:hidden;border:1px solid var(--line-strong);
+        background:linear-gradient(135deg,#e8edf6 0%,#dfe6f2 45%,#eef1f6 100%)}
+  .win{position:absolute;background:rgba(255,255,255,.72);border:1px solid rgba(255,255,255,.9);border-radius:7px;
+       box-shadow:0 6px 18px rgba(31,35,41,.07)}
+  .taskbar{position:absolute;left:0;right:0;bottom:0;height:24px;background:rgba(255,255,255,.66);border-top:1px solid rgba(255,255,255,.9)}
+  .edge{position:absolute;top:0;right:0;bottom:0;width:2px;background:repeating-linear-gradient(180deg,var(--brand) 0 5px,transparent 5px 11px);opacity:.5}
+  .edge-lb{position:absolute;top:8px;right:10px;font-size:9.5px;color:var(--brand);font-family:var(--mono)}
+  .frame{position:absolute;right:0;box-shadow:0 6px 18px rgba(31,35,41,.16);border:0}
+  .cap-open{top:120px;width:320px;height:44px}
+  .cap-shut{top:200px;width:320px;height:6px}
+  .callout{position:absolute;left:14px;font-size:10.5px;color:var(--text-2);background:rgba(255,255,255,.94);
+           border:1px solid var(--line);border-radius:6px;padding:5px 9px;line-height:1.5;max-width:200px}
+  .callout b{font-weight:600;color:var(--text);font-family:var(--mono);font-size:10px}
+  .co1{top:112px}
+  .co2{top:192px}
+  .arrow{position:absolute;left:224px;width:66px;height:1px;background:var(--text-4)}
+  .a1{top:142px}
+  .a2{top:203px}
+  .arrow::after{content:"";position:absolute;right:-1px;top:-3px;border:3.5px solid transparent;border-left-color:var(--text-4)}
+  .zoom{margin-top:9px;display:flex;align-items:center;gap:10px}
+  .zoom .lb{font-size:10.5px;color:var(--text-3);flex:none}
+  .zoombox{position:relative;width:100%;height:40px;border:1px dashed var(--line-strong);border-radius:6px;overflow:hidden;background:#fbfcfd}
+  .zoombox iframe{position:absolute;left:0;top:0;width:320px;height:6px;border:0;transform:scale(4);transform-origin:0 0;margin-top:8px}
+
+  .preview{flex:1;display:flex;align-items:center;justify-content:center;min-height:0}
+  .preview iframe{border:0;box-shadow:0 10px 26px rgba(31,35,41,.13)}
+  .fpanel{width:680px;height:460px;border-radius:12px}
+  .note{margin-top:7px;font-size:10.5px;color:var(--text-3);line-height:1.6}
+
+  .rules{display:flex;flex-direction:column;gap:7px;flex:1;justify-content:center}
+  .lvlrow{display:flex;align-items:center;gap:8px}
+  .pill{padding:5px 11px;border-radius:6px;font-size:11px;border:1px solid var(--line-strong);background:#fff;color:var(--text-2)}
+  .pill.on{background:var(--brand-dim);border-color:rgba(43,108,246,.3);color:var(--brand);font-weight:600}
+  .pill.cap{background:#f4f5f7;color:var(--text-4);border-style:dashed}
+  .flowlab{font-size:10px;color:var(--text-4);font-family:var(--mono)}
+  .arrowx{color:var(--text-4);font-size:12px}
+  .ruletxt{margin-top:4px;font-size:10.5px;color:var(--text-2);line-height:1.7}
+  .ruletxt b{color:var(--text)}
+
+  .dw{position:relative;flex:1;border-radius:8px;overflow:hidden;border:1px solid var(--line-strong);
+      background:linear-gradient(135deg,#e8edf6 0%,#dfe6f2 45%,#eef1f6 100%)}
+  .dw iframe{border:0;position:absolute;transform-origin:0 0}
+  .dw-main{left:18px;top:34px;width:680px;height:460px;transform:scale(.34);
+           box-shadow:0 8px 20px rgba(31,35,41,.14);border-radius:12px}
+  .dw-pop{left:300px;top:20px;width:440px;height:560px;transform:scale(.42);
+          box-shadow:0 14px 32px rgba(31,35,41,.24);border-radius:12px}
+  /* Labels sit on each window's own top-left corner: annotations cost no vertical space. */
+  .dw-lb{position:absolute;font-size:10px;color:var(--text-2);background:rgba(255,255,255,.95);
+         border:1px solid var(--line);border-radius:5px;padding:3px 7px;font-family:var(--mono)}
+  .lb-main{left:26px;top:42px}
+  .lb-pop{left:308px;top:28px;color:var(--brand);border-color:rgba(43,108,246,.32)}
+  .only1{position:absolute;right:12px;top:12px;font-size:10px;font-weight:600;color:#fff;background:var(--brand);
+         border-radius:5px;padding:3px 8px}
+
+  .palette-row{display:flex;align-items:center;gap:12px;flex:none}
+  .palette{display:flex;flex:1;border-radius:7px;overflow:hidden;border:1px solid var(--line)}
+  .sw{flex:1;height:30px;display:flex;align-items:flex-end;justify-content:center;padding-bottom:2px;font-size:8px;font-family:var(--mono);color:rgba(255,255,255,.92)}
+  .sw.dark{color:var(--text-3)}
+</style>
+</head>
+<body>
+<div class="sheet">
+  <header>
+    <h1>AAIL 状态与交互说明</h1>
+    <span class="sub">浅色单主题 · 单窗口双态 · 一级堆栈 · 二级 = 独立窗口（全局 ≤ 1）</span>
+    <span class="tagline">1600 × 1000 · 组件实时渲染</span>
+  </header>
+
+  <div class="grid">
+    <div class="card">
+      <div class="ct"><span class="n">A</span><h2>桌面右边缘 · 折叠态与展开态</h2><span class="cn">主窗口 · 双态</span></div>
+      <div class="desk">
+        <div class="edge"></div>
+        <div class="edge-lb">屏幕右边缘</div>
+        <div class="win" style="left:36px;top:150px;width:190px;height:140px"></div>
+        <div class="win" style="left:250px;top:240px;width:210px;height:150px"></div>
+        <div class="taskbar"></div>
+        <div class="callout co1">展开态 <b>320 × 44</b><br>常驻；悬停保持展开</div>
+        <div class="arrow a1"></div>
+        <iframe class="frame cap-open" src="http://127.0.0.1:5183/#capsule" scrolling="no"></iframe>
+        <div class="callout co2">折叠态 <b>320 × 6</b><br>移开 320ms 后回落</div>
+        <div class="arrow a2"></div>
+        <iframe class="frame cap-shut" src="http://127.0.0.1:5183/#sliver" scrolling="no"></iframe>
+      </div>
+      <div class="zoom">
+        <span class="lb">折叠态 4× 放大</span>
+        <div class="zoombox"><iframe src="http://127.0.0.1:5183/#sliver" scrolling="no"></iframe></div>
+        <span class="lb">蓝色实块 = 定位锚点　渐隐光带 = 呼吸提示</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="ct"><span class="n">B</span><h2>一级面板 · 计划总览首页</h2><span class="cn">680 × 460</span></div>
+      <div class="preview"><iframe class="fpanel" src="http://127.0.0.1:5183/#panel" scrolling="no"></iframe></div>
+      <p class="note">周条给出跨天分布（圆点 = 当日计划数，今日高亮），下方是当天时间轴，每项按真实起止时间定位，红竖线是当前时刻。灰色 = 静默 L1，蓝色 = 通知 L2，橙色 = 强提醒 L3。</p>
+    </div>
+
+    <div class="card">
+      <div class="ct"><span class="n">C</span><h2>导航层级规则</h2></div>
+      <div class="rules">
+        <div class="lvlrow">
+          <span class="flowlab">一级</span>
+          <span class="pill">计划</span>
+          <span class="arrowx">→</span>
+          <span class="pill on">角色</span>
+          <span class="pill">角色详情（抽屉）</span>
+          <span class="flowlab">栈 + 游标 · 前进 / 后退</span>
+        </div>
+        <div class="lvlrow">
+          <span class="flowlab">二级</span>
+          <span class="pill on">独立窗口 · 编辑角色卡 / 调整权限</span>
+          <span class="flowlab">全局同时只允许 1 个</span>
+        </div>
+        <div class="lvlrow">
+          <span class="flowlab">三级</span>
+          <span class="pill cap">不存在</span>
+          <span class="flowlab">再要就 focus 已有那个</span>
+        </div>
+        <p class="ruletxt">
+          <b>一级</b>是主窗口内部的页面栈：新页面入栈并截断前进分支，<b>后退 / 前进</b>都能用。详情抽屉属于一级，只读。<br>
+          <b>二级</b>是<b>真的另开一个窗口</b>（独立 WebView），用于编辑角色卡、改权限这类动手任务；<b>全局同时只允许存在一个</b>——重复请求不会开出第二个，而是把已有那个置顶聚焦。<br>
+          <b>三级被数据结构排除</b>：二级窗口里没有开新窗口的入口。
+        </p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="ct"><span class="n">D</span><h2>二级面板 · 独立窗口</h2><span class="cn">440 × 560 · ≤ 1</span></div>
+      <div class="dw">
+        <iframe class="dw-main" src="http://127.0.0.1:5183/#panel" scrolling="no"></iframe>
+        <div class="dw-lb lb-main">一级面板（主窗口）</div>
+        <iframe class="dw-pop" src="http://127.0.0.1:5183/#popup" scrolling="no"></iframe>
+        <div class="dw-lb lb-pop">二级面板（独立窗口）</div>
+        <div class="only1">全局 ≤ 1</div>
+      </div>
+      <p class="note">编辑角色卡 / 调整权限在这里进行：名称、触发、以及逐条权限开关。权限变更写入审计日志——这正是"内核零业务、权限下放给角色"的落点。</p>
+    </div>
+  </div>
+</div>
+<div class="palette-row">
+  <span class="flowlab">浅色单主题 · 无暗色模式</span>
+  <div class="palette">
+    <div class="sw" style="background:#2b6cf6">2b6cf6</div>
+    <div class="sw" style="background:#22b07d">22b07d</div>
+    <div class="sw" style="background:#f59e0b">f59e0b</div>
+    <div class="sw" style="background:#f04a4a">f04a4a</div>
+    <div class="sw dark" style="background:#dfe2e8">dfe2e8</div>
+    <div class="sw dark" style="background:#f7f8fa">f7f8fa</div>
+    <div class="sw" style="background:#1f2329">1f2329</div>
+  </div>
+</div>
+</body>
+</html>

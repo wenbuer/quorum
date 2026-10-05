@@ -1,0 +1,377 @@
+{
+  "schema_version": 1,
+  "diagram_type": "lifecycle",
+  "meta": {
+    "title": "AAIL 定时任务生命周期",
+    "viewBox": [
+      1180,
+      860
+    ],
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "main-rail",
+        "label": "主轨推进",
+        "focus": [
+          "pending",
+          "scheduler",
+          "dispatch",
+          "running",
+          "done"
+        ],
+        "note": "从待执行到完成，动作分流决定走哪条支路。"
+      },
+      {
+        "id": "action-branches",
+        "label": "三条动作支路",
+        "focus": [
+          "dispatch",
+          "br_notify",
+          "br_invoke",
+          "running",
+          "done"
+        ],
+        "note": "notify 直达完成，invoke 扇出派发，run 进入执行者自身工作区。"
+      },
+      {
+        "id": "permission-gate",
+        "label": "权限判定与等待",
+        "focus": [
+          "running",
+          "waiting",
+          "aborted"
+        ],
+        "note": "未命中工作区即索取完全权限，等待授权是可返回的等待态。"
+      },
+      {
+        "id": "recovery-loop",
+        "label": "失败与重试",
+        "focus": [
+          "running",
+          "failed"
+        ],
+        "note": "执行失败可重试，级联深度上限 3 且带 visited 防自激。"
+      }
+    ]
+  },
+  "lanes": [
+    {
+      "id": "main",
+      "label": "主轨状态"
+    },
+    {
+      "id": "side",
+      "label": "动作支路 · 权限等待"
+    },
+    {
+      "id": "terminal",
+      "label": "等待 · 失败 · 出口"
+    }
+  ],
+  "states": [
+    {
+      "id": "pending",
+      "type": "start",
+      "label": "待执行",
+      "sublabel": "owner · createdBy · when · do",
+      "lane": "main",
+      "col": 0,
+      "step": "01",
+      "tag": "入口"
+    },
+    {
+      "id": "scheduler",
+      "type": "active",
+      "label": "到期触发",
+      "sublabel": "算 next-due 后 sleep",
+      "lane": "main",
+      "col": 1,
+      "step": "02",
+      "tag": "调度"
+    },
+    {
+      "id": "dispatch",
+      "type": "decision",
+      "label": "动作分流",
+      "sublabel": "按 do.kind 分路",
+      "lane": "main",
+      "col": 2,
+      "step": "03",
+      "tag": "分流"
+    },
+    {
+      "id": "running",
+      "type": "active",
+      "label": "执行中",
+      "sublabel": "执行者自有工具 · 角色工作区",
+      "lane": "main",
+      "col": 3,
+      "step": "04",
+      "tag": "执行"
+    },
+    {
+      "id": "done",
+      "type": "success",
+      "label": "完成",
+      "sublabel": "执行成功即终态",
+      "lane": "main",
+      "col": 4,
+      "step": "05",
+      "tag": "终态"
+    },
+    {
+      "id": "br_invoke",
+      "type": "external",
+      "label": "派发队列",
+      "sublabel": "扇出多角色 · 异步排队",
+      "lane": "side",
+      "col": 0,
+      "width": 96,
+      "tag": "invoke"
+    },
+    {
+      "id": "waiting",
+      "type": "waiting",
+      "label": "等待授权",
+      "sublabel": "超出工作区范围",
+      "lane": "side",
+      "col": 1,
+      "width": 96,
+      "tag": "非终态"
+    },
+    {
+      "id": "br_notify",
+      "type": "external",
+      "label": "提醒分级器",
+      "sublabel": "L1/L2/L3 分级提醒",
+      "lane": "side",
+      "col": 2,
+      "width": 96,
+      "tag": "notify"
+    },
+    {
+      "id": "aborted",
+      "type": "failure",
+      "label": "已中止",
+      "sublabel": "用户拒绝授权",
+      "lane": "terminal",
+      "col": 1,
+      "width": 96,
+      "tag": "终态"
+    },
+    {
+      "id": "failed",
+      "type": "failure",
+      "label": "执行失败",
+      "sublabel": "可重试",
+      "lane": "terminal",
+      "col": 2,
+      "width": 96,
+      "tag": "可恢复"
+    }
+  ],
+  "transitions": [
+    {
+      "id": "t-due",
+      "from": "pending",
+      "to": "scheduler",
+      "route": "straight",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "t-dispatch",
+      "from": "scheduler",
+      "to": "dispatch",
+      "route": "straight",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "t-invoke",
+      "from": "dispatch",
+      "to": "br_invoke",
+      "label": "invoke",
+      "labelDy": 24,
+      "route": "straight",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "t-run",
+      "from": "dispatch",
+      "to": "running",
+      "label": "run",
+      "fromSide": "top",
+      "toSide": "top",
+      "via": [
+        [
+          402,
+          110
+        ],
+        [
+          530,
+          110
+        ]
+      ]
+    },
+    {
+      "id": "t-notify",
+      "from": "dispatch",
+      "to": "br_notify",
+      "label": "notify",
+      "fromSide": "right",
+      "toSide": "right",
+      "via": [
+        [
+          478,
+          150
+        ],
+        [
+          478,
+          620
+        ],
+        [
+          780,
+          620
+        ],
+        [
+          780,
+          307
+        ]
+      ]
+    },
+    {
+      "id": "t-invoke-done",
+      "from": "br_invoke",
+      "to": "done",
+      "fromSide": "bottom",
+      "toSide": "right",
+      "via": [
+        [
+          402,
+          650
+        ],
+        [
+          790,
+          650
+        ],
+        [
+          790,
+          157
+        ]
+      ]
+    },
+    {
+      "id": "t-notify-done",
+      "from": "br_notify",
+      "to": "done",
+      "route": "straight",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "t-success",
+      "from": "running",
+      "to": "done",
+      "route": "straight",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "t-need-perm",
+      "from": "running",
+      "to": "waiting",
+      "variant": "security"
+    },
+    {
+      "id": "t-approved",
+      "from": "waiting",
+      "to": "running",
+      "variant": "emphasis"
+    },
+    {
+      "id": "t-denied",
+      "from": "waiting",
+      "to": "aborted",
+      "route": "straight",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "t-exec-fail",
+      "from": "running",
+      "to": "failed",
+      "variant": "security",
+      "fromSide": "right",
+      "toSide": "left",
+      "via": [
+        [
+          640,
+          170
+        ],
+        [
+          640,
+          479
+        ]
+      ]
+    },
+    {
+      "id": "t-retry",
+      "from": "failed",
+      "to": "running",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "via": [
+        [
+          960,
+          704
+        ],
+        [
+          960,
+          40
+        ],
+        [
+          545,
+          40
+        ]
+      ]
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "审计贯穿",
+      "items": [
+        "每次派发都记录 caller / target / op / args / depth 与结果",
+        "级联调用 depth ≤ 3，visited 集合拦住 A→B→A 自激"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "git 提交贯穿",
+      "items": [
+        "每一次落盘变更提交一次",
+        "commit message 记录 任务 + 角色 + 动作摘要"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "权限边界",
+      "items": [
+        "命中工作区（角色自有 + 用户显式添加目录）直接执行：查 / 改全权",
+        "未命中 → 需要完全权限 → 等待授权，可勾选「不再询问」并按 角色 + 能力 + 路径前缀 记住"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "支路出口与恢复",
+      "items": [
+        "notify 直达完成：L1 静默 / L2 系统通知 / L3 强提醒置顶窗",
+        "invoke 走派发队列扇出多角色，异步排队、一次失败不阻塞其他",
+        "run 在角色自有工作区内执行；执行失败可重试，拒绝授权则中止"
+      ]
+    }
+  ]
+}

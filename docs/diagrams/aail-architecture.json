@@ -1,0 +1,358 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "AAIL 桌面助手架构",
+    "output": "aail-architecture.html",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "main-path",
+        "label": "主路径：呼出 → 执行 → 提醒",
+        "focus": [
+          "hotkey",
+          "shell",
+          "registry",
+          "rolepack",
+          "gate",
+          "capabilities"
+        ],
+        "note": "从全局热键呼出到系统能力落地的唯一主链路。"
+      },
+      {
+        "id": "reminder-path",
+        "label": "调度与提醒链路",
+        "focus": [
+          "shell",
+          "scheduler",
+          "escalator",
+          "windows"
+        ],
+        "note": "调度与提醒全部由 Rust 内核承担，前端不持有定时器。"
+      },
+      {
+        "id": "tenant-isolation",
+        "label": "角色租户隔离",
+        "focus": [
+          "rolepack",
+          "gate",
+          "capabilities",
+          "llm"
+        ],
+        "note": "角色包只能经权限闸门触达系统能力。"
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "hotkey",
+      "type": "external",
+      "label": "全局热键 / 托盘",
+      "sublabel": "用户呼出入口",
+      "pos": [
+        40,
+        350
+      ],
+      "size": [
+        190,
+        84
+      ]
+    },
+    {
+      "id": "shell",
+      "type": "frontend",
+      "label": "外壳 Shell",
+      "sublabel": "单窗口双态 ⇄ 贴边吸附",
+      "pos": [
+        320,
+        350
+      ],
+      "size": [
+        190,
+        84
+      ]
+    },
+    {
+      "id": "ui",
+      "type": "frontend",
+      "label": "Svelte UI",
+      "sublabel": "WebView · 单页两套布局",
+      "pos": [
+        320,
+        90
+      ],
+      "size": [
+        190,
+        84
+      ]
+    },
+    {
+      "id": "registry",
+      "type": "backend",
+      "label": "角色注册表",
+      "sublabel": "工作区管理 · Rust 内核",
+      "pos": [
+        600,
+        350
+      ],
+      "size": [
+        190,
+        84
+      ]
+    },
+    {
+      "id": "scheduler",
+      "type": "backend",
+      "label": "到期调度器",
+      "sublabel": "最小堆 · next-due 后 sleep",
+      "pos": [
+        880,
+        90
+      ],
+      "size": [
+        190,
+        84
+      ]
+    },
+    {
+      "id": "escalator",
+      "type": "backend",
+      "label": "提醒分级器",
+      "sublabel": "L1 / L2 / L3 三档",
+      "pos": [
+        1160,
+        90
+      ],
+      "size": [
+        190,
+        84
+      ]
+    },
+    {
+      "id": "rolepack",
+      "type": "external",
+      "label": "角色包",
+      "sublabel": "role.json · prompt.md · tools/",
+      "tag": "一文件夹一租户",
+      "pos": [
+        880,
+        350
+      ],
+      "size": [
+        190,
+        84
+      ]
+    },
+    {
+      "id": "gate",
+      "type": "security",
+      "label": "权限闸门 + 审计日志",
+      "sublabel": "唯一能力通道",
+      "pos": [
+        1160,
+        350
+      ],
+      "size": [
+        190,
+        84
+      ]
+    },
+    {
+      "id": "capabilities",
+      "type": "backend",
+      "label": "系统能力层",
+      "sublabel": "截图 OCR · 浏览器 CDP · 文件",
+      "pos": [
+        1440,
+        350
+      ],
+      "size": [
+        190,
+        84
+      ]
+    },
+    {
+      "id": "windows",
+      "type": "external",
+      "label": "Windows 系统能力",
+      "sublabel": "通知中心 · 开机自启 · 单实例",
+      "pos": [
+        1440,
+        90
+      ],
+      "size": [
+        190,
+        84
+      ]
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "宿主 SQLite",
+      "sublabel": "计划 · 触发日志 · 授权记录",
+      "pos": [
+        600,
+        610
+      ],
+      "size": [
+        190,
+        84
+      ]
+    },
+    {
+      "id": "llm",
+      "type": "cloud",
+      "label": "LLM Provider",
+      "sublabel": "Noop / Ollama / 云",
+      "pos": [
+        880,
+        610
+      ],
+      "size": [
+        190,
+        84
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "角色包租户 · G:\\Projects\\aail",
+      "wraps": [
+        "rolepack"
+      ]
+    },
+    {
+      "kind": "security-group",
+      "label": "权限闸门 · 唯一通道",
+      "wraps": [
+        "gate"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "call-shell",
+      "from": "hotkey",
+      "to": "shell",
+      "label": "全局呼出",
+      "variant": "emphasis"
+    },
+    {
+      "id": "scheduler-ui",
+      "from": "scheduler",
+      "to": "ui",
+      "label": "订阅内核事件"
+    },
+    {
+      "id": "shell-registry",
+      "from": "shell",
+      "to": "registry",
+      "label": "内核调用"
+    },
+    {
+      "id": "shell-scheduler",
+      "from": "shell",
+      "to": "scheduler",
+      "label": "注册到期计划",
+      "fromSide": "top"
+    },
+    {
+      "id": "scheduler-escalator",
+      "from": "scheduler",
+      "to": "escalator",
+      "label": "到点触发"
+    },
+    {
+      "id": "escalator-windows",
+      "from": "escalator",
+      "to": "windows",
+      "label": "L2 通知"
+    },
+    {
+      "id": "escalator-shell",
+      "from": "escalator",
+      "to": "shell",
+      "label": "L3 强提醒窗",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDx": -40
+    },
+    {
+      "id": "registry-rolepack",
+      "from": "registry",
+      "to": "rolepack",
+      "label": "加载角色包"
+    },
+    {
+      "id": "rolepack-gate",
+      "from": "rolepack",
+      "to": "gate",
+      "label": "申请能力"
+    },
+    {
+      "id": "gate-capabilities",
+      "from": "gate",
+      "to": "capabilities",
+      "label": "授权后调用"
+    },
+    {
+      "id": "capabilities-windows",
+      "from": "capabilities",
+      "to": "windows",
+      "label": "系统调用"
+    },
+    {
+      "id": "registry-db",
+      "from": "registry",
+      "to": "db",
+      "label": "计划 / 触发日志",
+      "labelAt": [
+        695,
+        500
+      ]
+    },
+    {
+      "id": "rolepack-llm",
+      "from": "rolepack",
+      "to": "llm",
+      "label": "一期 Noop",
+      "labelAt": [
+        975,
+        500
+      ],
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "主路径",
+      "items": [
+        "热键或托盘呼出外壳，单窗口在胶囊态与面板态之间切换",
+        "角色注册表按需加载角色包，能力调用一律经权限闸门",
+        "权限闸门是角色触达系统能力的唯一通道，并写入审计日志",
+        "LLM Provider 一期为 Noop，Ollama 与云提供商后续接入"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "内核零业务",
+      "items": [
+        "宿主进程里不出现任何业务名词，业务全部下放给角色包",
+        "角色包是一个文件夹一个租户：role.json + prompt.md + work/ + tools/ + memory/",
+        "角色包的 work/ 是私有存储，宿主不感知其中的业务数据",
+        "宿主 SQLite 只存计划、触发日志与授权记录，不存业务数据"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "调度与提醒",
+      "items": [
+        "到期调度器用最小堆算出 next-due 后 sleep",
+        "不放在前端：WebView2 会节流隐藏窗口的 JS 定时器",
+        "提醒分级 L1 角标 / L2 系统 toast / L3 自绘置顶强提醒窗"
+      ]
+    }
+  ]
+}

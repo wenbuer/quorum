@@ -1,0 +1,76 @@
+/* AAIL design tokens -- light productivity palette (uTools-like).
+   One theme only: no dark mode, no theme switch. */
+:root {
+  color-scheme: light;
+
+  --bg: #ffffff;
+  --sunken: #f7f8fa;
+  --capsule: #e7f7fa;
+  --hover: #f2f3f5;
+  --pressed: #e9ebef;
+
+  --line: #eceef2;
+  --line-strong: #dfe2e8;
+
+  --text: #1f2329;
+  --text-2: #646a73;
+  --text-3: #8f959e;
+  --text-4: #b7bcc4;
+
+  --brand: #2b6cf6;
+  --brand-hi: #1f5be0;
+  --brand-dim: #eaf1fe;
+
+  --green: #22b07d;
+  --green-dim: #e6f7f0;
+  --orange: #f59e0b;
+  --orange-dim: #fef3e2;
+  --red: #f04a4a;
+  --red-dim: #fdecec;
+
+  --r-capsule: 22px;
+  --r-panel: 12px;
+  --r-card: 8px;
+  --r-btn: 6px;
+  --r-tag: 9px;
+
+  --shadow-capsule: 0 6px 20px rgba(31, 35, 41, 0.16);
+  --shadow-panel: 0 18px 44px rgba(31, 35, 41, 0.16), 0 2px 6px rgba(31, 35, 41, 0.06);
+
+  --mono: "Cascadia Mono", Consolas, ui-monospace, monospace;
+  --sans: "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 12px;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+#app {
+  height: 100%;
+}
+
+.num {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+.micro {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--text-4);
+}
