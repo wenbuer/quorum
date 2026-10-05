@@ -224,7 +224,7 @@
   });
 
   const canSubmit = $derived(
-    pending ? text.trim().length > 0 : domain === "plan" && (text.trim().length > 0 || chips.length > 0),
+    pending ? true : domain === "plan" && (text.trim().length > 0 || chips.length > 0),
   );
 
   function readPlan(input: string) {
@@ -244,11 +244,15 @@
     if (!canSubmit) return;
     if (pending) {
       const value = text.trim();
-      const filled = [...pending.filled, value];
       text = "";
       closed = true;
-      if (filled.length >= pending.params.length) finish(pending.id, filled);
-      else pending = { ...pending, filled };
+      // Params are optional: an empty answer ends the chain instead of parking here.
+      if (!value) finish(pending.id, pending.filled);
+      else {
+        const filled = [...pending.filled, value];
+        if (filled.length >= pending.params.length) finish(pending.id, filled);
+        else pending = { ...pending, filled };
+      }
       inputEl?.focus();
       return;
     }
@@ -283,7 +287,35 @@
     inputEl?.focus();
   }
 
+  /// Escape peels one layer at a time -- menu, then the last capsule -- and only lets the
+  /// panel close once the box is empty again.
+  function stepBack(event: KeyboardEvent) {
+    if (closed === false && offers.length > 0) {
+      event.preventDefault();
+      event.stopPropagation();
+      closed = true;
+      return;
+    }
+    if (pending) {
+      event.preventDefault();
+      event.stopPropagation();
+      pending = pending.filled.length > 0 ? { ...pending, filled: pending.filled.slice(0, -1) } : null;
+      text = "";
+      inputEl?.focus();
+      return;
+    }
+    if (chips.length > 0) {
+      event.preventDefault();
+      event.stopPropagation();
+      chips = chips.slice(0, -1);
+    }
+  }
+
   function onKeydown(event: KeyboardEvent) {
+    if (event.key === "Escape") {
+      stepBack(event);
+      return;
+    }
     if (event.key === "Backspace" && text === "" && chips.length > 0) {
       event.preventDefault();
       chips = chips.slice(0, -1);
@@ -303,12 +335,6 @@
       if (event.key === "Enter") {
         event.preventDefault();
         offers[active]?.run();
-        return;
-      }
-      if (event.key === "Escape") {
-        event.preventDefault();
-        closed = true;
-        pending = null;
         return;
       }
     }
@@ -362,7 +388,7 @@
       onblur={() => (closed = true)}
     />
     <button class="send" onclick={submit} disabled={!canSubmit}>
-      {chips.length > 0 ? "执行" : "解析"}
+      {pending || chips.length > 0 ? "执行" : "解析"}
     </button>
   </div>
 

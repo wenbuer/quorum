@@ -94,6 +94,9 @@ fn is_panel(window: &WebviewWindow) -> bool {
 /// stays put; a summon only re-centres a window they never moved.
 static CAPSULE_POS: Mutex<Option<(f64, f64)>> = Mutex::new(None);
 static PANEL_POS: Mutex<Option<(f64, f64)>> = Mutex::new(None);
+/// Where the capsule sits along the edge it is parked on. Separate from CAPSULE_POS: the
+/// panel overwrites the window position long before the capsule is restored.
+static PARK_POS: Mutex<Option<(f64, f64)>> = Mutex::new(None);
 /// Some(side) while the capsule is parked against a screen edge. Only then does it collapse
 /// to the slim form -- floating free, or mid-drag, it stays open.
 static EDGE_SIDE: Mutex<Option<&'static str>> = Mutex::new(None);
@@ -200,7 +203,7 @@ fn now_ms() -> u64 {
 fn magnet(window: &WebviewWindow) {
     let Some(side) = edge_near(window) else { return };
     let (x, y, w, h) = current_spot(window);
-    let (tx, ty) = snap_spot(window, side, w, h);
+    let (tx, ty) = snap_spot(window, side, w, h, (x, y));
     if (tx - x).abs() < 0.5 && (ty - y).abs() < 0.5 {
         return;
     }
@@ -231,15 +234,15 @@ fn arm_settle(window: &WebviewWindow) {
     });
 }
 
-/// Flush against the given edge, keeping the position along that edge.
-fn snap_spot(window: &WebviewWindow, side: &str, w: f64, h: f64) -> (f64, f64) {
+/// Flush against the given edge, keeping the anchor's place along that edge.
+fn snap_spot(window: &WebviewWindow, side: &str, w: f64, h: f64, anchor: (f64, f64)) -> (f64, f64) {
     let (mx, my, mw, mh) = monitor_box(window);
-    let (x, y, _, _) = current_spot(window);
+    let (ax, ay) = anchor;
     match side {
-        "left" => (mx, y.clamp(my, my + mh - h)),
-        "right" => (mx + mw - w, y.clamp(my, my + mh - h)),
-        "top" => (x.clamp(mx, mx + mw - w), my),
-        _ => (x.clamp(mx, mx + mw - w), my + mh - h),
+        "left" => (mx, ay.clamp(my, my + mh - h)),
+        "right" => (mx + mw - w, ay.clamp(my, my + mh - h)),
+        "top" => (ax.clamp(mx, mx + mw - w), my),
+        _ => (ax.clamp(mx, mx + mw - w), my + mh - h),
     }
 }
 
@@ -249,7 +252,16 @@ fn place_docked(window: &WebviewWindow, width: f64, height: f64) -> tauri::Resul
     window.set_size(LogicalSize::new(width, height))?;
     let (x, y) = match held {
         // Parked at an edge: both the slim form and the hovered-open form hug that edge.
-        Some(side) => snap_spot(window, side, width, height),
+        // The spot along it comes from PARK_POS, not from the window -- after the panel
+        // closes the window is still sitting where the panel was, and taking its y parked
+        // the capsule next to the panel instead of where the user left it.
+        Some(side) => {
+            let anchor = remembered(&PARK_POS).unwrap_or_else(|| {
+                let (x, y, _, _) = current_spot(window);
+                (x, y)
+            });
+            snap_spot(window, side, width, height, anchor)
+        }
         None => match remembered(&CAPSULE_POS) {
             Some((x, y)) => clamp_to_screen(window, x, y, width, height),
             // Inset from the edge on purpose: flush against it would read as "parked" and
@@ -257,6 +269,9 @@ fn place_docked(window: &WebviewWindow, width: f64, height: f64) -> tauri::Resul
             None => (mx + mw - width - 48.0, my + mh * 0.30),
         },
     };
+    if held.is_some() {
+        remember(&PARK_POS, x, y);
+    }
     mark_placed(x, y);
     window.set_position(LogicalPosition::new(x, y))?;
     Ok(())
@@ -302,8 +317,10 @@ fn settle(app: &AppHandle) -> tauri::Result<()> {
     if let Ok(mut side) = EDGE_SIDE.lock() {
         *side = near;
     }
-    if near.is_none() {
-        remember(&CAPSULE_POS, x, y);
+    // Two memories: where it floats free, and where it sits along the edge it is parked on.
+    match near {
+        Some(_) => remember(&PARK_POS, x, y),
+        None => remember(&CAPSULE_POS, x, y),
     }
     match near {
         Some(_) => to_dock(app, "edge"),
