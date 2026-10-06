@@ -7,7 +7,7 @@
 //! Scheduler, role registry and permission gate land in M1/M2. Everything here is
 //! geometry plus the two things only the OS can give us: a global hotkey and a tray.
 
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::Mutex;
 
 use tauri::{
@@ -26,7 +26,12 @@ const PANEL_W_MAX: f64 = 1120.0;
 const PANEL_H_MIN: f64 = 520.0;
 const PANEL_H_MAX: f64 = 800.0;
 const CAPSULE_W: f64 = 320.0;
-const CAPSULE_OPEN_H: f64 = 44.0;
+// The expanded capsule is the day's checklist, so its height follows the row count.
+const LIST_HEAD_H: f64 = 34.0;
+const LIST_ROW_H: f64 = 36.0;
+// Two pixels of slack: the header's 1px rule otherwise pushes the last row into a scrollbar.
+const LIST_PAD_H: f64 = 10.0;
+const LIST_ROWS_MAX: u32 = 7;
 // Collapsed state is a dock you can actually aim at; the old 6px sliver was unhittable.
 const DOCK_W: f64 = 148.0;
 const DOCK_H: f64 = 44.0;
@@ -113,6 +118,8 @@ static ACTIVE_HOTKEY: Mutex<String> = Mutex::new(String::new());
 /// not a drag, so it must not overwrite what the user chose.
 static LAST_PLACED: Mutex<Option<(f64, f64)>> = Mutex::new(None);
 /// Last time the window moved on its own (a hand drag); drives settle-after-drag.
+/// How many rows the expanded capsule is currently showing; the kernel owns the height.
+static LIST_ROWS: AtomicU32 = AtomicU32::new(3);
 static LAST_MOVE: AtomicU64 = AtomicU64::new(0);
 static WATCHING: AtomicBool = AtomicBool::new(false);
 
@@ -160,6 +167,12 @@ fn panel_size(window: &WebviewWindow) -> (f64, f64) {
         (mw * PANEL_W_RATIO).clamp(PANEL_W_MIN, PANEL_W_MAX),
         (mh * PANEL_H_RATIO).clamp(PANEL_H_MIN, PANEL_H_MAX),
     )
+}
+
+/// Tall enough for the checklist, never taller than the cap.
+fn capsule_height() -> f64 {
+    let rows = LIST_ROWS.load(Ordering::Relaxed).clamp(1, LIST_ROWS_MAX) as f64;
+    LIST_HEAD_H + rows * LIST_ROW_H + LIST_PAD_H
 }
 
 fn current_spot(window: &WebviewWindow) -> (f64, f64, f64, f64) {
@@ -370,6 +383,15 @@ fn set_floating_icon(enabled: bool) {
     FLOATING_ICON.store(enabled, Ordering::Relaxed);
 }
 
+/// The list grows and shrinks with the day, so the frontend reports its row count.
+#[tauri::command]
+fn capsule_rows(app: AppHandle, rows: u32) {
+    LIST_ROWS.store(rows, Ordering::Relaxed);
+    if CURRENT_MODE.lock().map(|m| *m).unwrap_or("capsule") == "capsule" {
+        let _ = to_dock(&app, "capsule");
+    }
+}
+
 #[tauri::command]
 fn active_hotkey() -> String {
     ACTIVE_HOTKEY.lock().map(|held| held.clone()).unwrap_or_default()
@@ -418,7 +440,7 @@ fn to_dock(app: &AppHandle, mode: &'static str) -> tauri::Result<()> {
     }
     let (width, height) = match mode {
         "edge" | "dock" => (DOCK_W, DOCK_H),
-        _ => (CAPSULE_W, CAPSULE_OPEN_H),
+        _ => (CAPSULE_W, capsule_height()),
     };
     place_docked(&window, width, height)?;
     if !window.is_visible()? {
@@ -581,6 +603,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             set_mode,
             set_floating_icon,
+            capsule_rows,
             list_dir,
             active_hotkey,
             open_popup,

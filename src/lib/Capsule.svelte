@@ -1,9 +1,9 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { getCurrentWindow } from "@tauri-apps/api/window";
-  import { plans, todayKey } from "./store.svelte";
+  import { plans, todayKey, toggleDone, type Route } from "./store.svelte";
 
-  let { edge = false, onopen }: { edge?: boolean; onopen: () => void } = $props();
+  let { edge = false, onopen }: { edge?: boolean; onopen: (route?: Route) => void } = $props();
 
   let at = $state(Date.now());
 
@@ -22,6 +22,14 @@
   const stage = $derived(
     !next ? "idle" : at < hourAt(next.start) ? "before" : at <= hourAt(next.end) ? "running" : "missed",
   );
+  const badge = $derived(
+    !next ? (today.length > 0 ? "全部完成" : "暂无安排") : pending.length + " 项待办",
+  );
+
+  // The window is sized by the kernel, so it has to be told how many rows to make room for.
+  $effect(() => {
+    invoke("capsule_rows", { rows: today.length }).catch(() => {});
+  });
 
   function hourAt(hour: number) {
     const date = new Date();
@@ -44,14 +52,12 @@
     return h > 0 ? h + ":" + m + ":" + s : m + ":" + s;
   }
 
-  const idleTitle = $derived(today.length > 0 ? "今天的安排都做完了" : "今天没有安排");
-  const idleNote = $derived(today.length > 0 ? "共 " + today.length + " 项" : "写下今天的打算");
-  const todayLabel = $derived(
-    new Date().getMonth() + 1 + "/" + String(new Date().getDate()).padStart(2, "0"),
+  const nowLabel = $derived(
+    next ? (stage === "before" ? countdown(left) : stage === "running" ? "进行中" : "已错过") : "",
   );
 
-  // The whole surface drags, but a press that never moves is a click. Without this split the
-  // native drag loop swallows the click and the panel can never be opened by pointer.
+  // Only the title strip drags. A memo list that moved whenever you aimed at a checkbox
+  // would be unusable.
   let pressX = 0;
   let pressY = 0;
   let dragging = false;
@@ -96,11 +102,11 @@
 {#snippet mark()}
   <span class="mark" class:dim={!next} class:ok={!next && today.length > 0} aria-hidden="true">
     {#if !next && today.length > 0}
-      <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8">
+      <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8">
         <path d="M3.5 8.4l3 3 6-6.6" stroke-linecap="round" stroke-linejoin="round" />
       </svg>
     {:else}
-      <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6">
+      <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6">
         <circle cx="8" cy="8" r="5.6" />
         <path d="M8 5.2v3l2 1.4" stroke-linecap="round" />
       </svg>
@@ -122,29 +128,32 @@
     </span>
   </button>
 {:else}
-  <div
-    class="capsule"
-    onmousedown={onDown}
-    oncontextmenu={onMenu}
-    role="button"
-    tabindex="0"
-    aria-label="拖动，或点击打开面板"
-    onkeydown={(e) => e.key === "Enter" && onopen()}
-  >
-    {@render mark()}
-    <span class="body">
-      <span class="title">{next ? next.title : idleTitle}</span>
-      <span class="tag"
-        >{next
-          ? next.role + " · " + hhmm(next.start) + " 开始" + (rest ? " · 还有 " + rest + " 项" : "")
-          : idleNote}</span
-      >
-    </span>
-    {#if next}
-      <span class="num count">{stage === "before" ? countdown(left) : stage === "running" ? "进行中" : "已错过"}</span>
-    {:else}
-      <span class="num date">{todayLabel}</span>
-    {/if}
+  <div class="list">
+    <header class="bar" onmousedown={onDown} oncontextmenu={onMenu}>
+      {@render mark()}
+      <span class="strong">今天</span>
+      <span class="badge">{badge}</span>
+      <span class="grow"></span>
+      {#if nowLabel}<span class="num now">{nowLabel}</span>{/if}
+    </header>
+
+    <div class="rows">
+      {#each today as plan (plan.id)}
+        <div class="row" class:done={plan.done}>
+          <button class="tick" class:on={plan.done} onclick={() => toggleDone(plan.id)} aria-label="完成">
+            {#if plan.done}
+              <svg viewBox="0 0 16 16" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3.5 8.4l3 3 6-6.6" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            {/if}
+          </button>
+          <span class="clock num">{hhmm(plan.start)}</span>
+          <button class="task" onclick={() => onopen({ name: "plan", id: plan.id })}>{plan.title}</button>
+          <span class="lvl {plan.level.toLowerCase()} num">{plan.level}</span>
+        </div>
+      {/each}
+      {#if today.length === 0}<p class="empty">今天还没有安排</p>{/if}
+    </div>
   </div>
 {/if}
 
@@ -175,7 +184,12 @@
   }
 
   .parked .body {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
     gap: 0;
+    flex: 1;
+    min-width: 0;
   }
 
   .park-time {
@@ -194,27 +208,35 @@
     text-overflow: ellipsis;
   }
 
-  .capsule {
+  .list {
     display: flex;
-    align-items: center;
-    gap: 9px;
+    flex-direction: column;
     width: 100%;
     height: 100%;
-    padding: 0 16px;
     background: var(--capsule);
     border-radius: inherit;
-    cursor: grab;
   }
 
-  .capsule:active {
+  .bar {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    height: 34px;
+    padding: 0 13px 0 11px;
+    border-bottom: 1px solid var(--line);
+    cursor: grab;
+    flex: none;
+  }
+
+  .bar:active {
     cursor: grabbing;
   }
 
   .mark {
     display: grid;
     place-items: center;
-    width: 26px;
-    height: 26px;
+    width: 20px;
+    height: 20px;
     border-radius: 50%;
     color: var(--brand);
     background: var(--brand-dim);
@@ -232,42 +254,126 @@
     background: var(--green-dim);
   }
 
-  .body {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    gap: 1px;
-    flex: 1;
-    min-width: 0;
-  }
-
-  .title {
-    font-size: 12.5px;
+  .strong {
+    font-size: 12px;
     font-weight: 600;
     color: var(--text);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
 
-  .tag {
+  .badge {
     font-size: 10px;
     color: var(--text-3);
+  }
+
+  .grow {
+    flex: 1;
+  }
+
+  .now {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--brand);
+  }
+
+  .rows {
+    flex: 1;
+    min-height: 0;
+    padding: 2px 6px 6px;
+    overflow-y: auto;
+  }
+
+  /* Only a long day scrolls, and then it is a hairline, not a browser bar. */
+  .rows::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .rows::-webkit-scrollbar-thumb {
+    border-radius: 3px;
+    background: rgba(31, 35, 41, 0.18);
+  }
+
+  .rows::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 36px;
+    padding: 0 6px;
+    border-radius: var(--r-btn);
+  }
+
+  .row:hover {
+    background: rgba(255, 255, 255, 0.75);
+  }
+
+  .tick {
+    display: grid;
+    place-items: center;
+    width: 15px;
+    height: 15px;
+    padding: 0;
+    border: 1px solid var(--line-strong);
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.7);
+    color: var(--green);
+    cursor: pointer;
+    flex: none;
+  }
+
+  .tick.on {
+    border-color: var(--green);
+    background: var(--green-dim);
+  }
+
+  .clock {
+    font-size: 10.5px;
+    color: var(--text-3);
+    flex: none;
+  }
+
+  .task {
+    flex: 1;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--text);
+    font: inherit;
+    font-size: 12px;
+    text-align: left;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    cursor: pointer;
   }
 
-  .count {
-    font-size: 15px;
-    font-weight: 600;
+  .task:hover {
     color: var(--brand);
+  }
+
+  .row.done .task {
+    color: var(--text-4);
+    text-decoration: line-through;
+  }
+
+  .lvl {
+    padding: 1px 5px;
+    border-radius: var(--r-tag);
+    font-size: 9px;
     flex: none;
   }
 
-  .date {
-    font-size: 12px;
+  .lvl.l1 { color: var(--text-3); background: var(--pressed); }
+  .lvl.l2 { color: var(--brand); background: var(--brand-dim); }
+  .lvl.l3 { color: var(--orange); background: var(--orange-dim); }
+
+  .empty {
+    margin: 16px 0 0;
+    text-align: center;
+    font-size: 11px;
     color: var(--text-4);
-    flex: none;
   }
 </style>

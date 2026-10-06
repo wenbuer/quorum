@@ -161,7 +161,13 @@
         {forward}
       />
     {:else}
-      <Capsule edge={mode === "edge"} onopen={() => setMode("panel")} />
+      <Capsule
+        edge={mode === "edge"}
+        onopen={(next) => {
+          if (next) open(next);
+          setMode("panel");
+        }}
+      />
     {/if}
   </div>
 {/if}
