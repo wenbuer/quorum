@@ -607,10 +607,15 @@ async fn capsule_menu(window: WebviewWindow, app: AppHandle) -> Result<(), Strin
 /// whole answer we need. Windows only -- this build ships for Windows.
 fn reg(args: &[&str]) -> bool {
     use std::os::windows::process::CommandExt;
+    use std::process::Stdio;
     const CREATE_NO_WINDOW: u32 = 0x0800_0000;
     std::process::Command::new("reg")
         .args(args)
         .creation_flags(CREATE_NO_WINDOW)
+        // A missing value is an answer, not an error: reg.exe would otherwise print
+        // "cannot find the registry value" into the dev console on every check.
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
         .status()
         .map(|status| status.success())
         .unwrap_or(false)
