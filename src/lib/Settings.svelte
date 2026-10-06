@@ -1,5 +1,15 @@
 <script lang="ts">
+  import { invoke } from "@tauri-apps/api/core";
   import { settings } from "./store.svelte";
+
+  // The registry is the truth, so read it back instead of trusting a UI flag.
+  let autostart = $state(false);
+
+  $effect(() => {
+    invoke<boolean>("autostart_enabled")
+      .then((on) => (autostart = on))
+      .catch(() => {});
+  });
 </script>
 
 <div class="page">
@@ -14,9 +24,22 @@
   <label class="item">
     <div>
       <p class="t">开启悬浮图标</p>
-      <p class="d">开启后，胶囊拖到屏幕边缘会收成一枚圆形图标；关掉则始终保持完整</p>
+      <p class="d">开启后，胶囊贴到屏幕边缘会收成一小条；关掉则始终保持完整</p>
     </div>
     <input class="switch" type="checkbox" bind:checked={settings.floatingIcon} />
+  </label>
+
+  <label class="item">
+    <div>
+      <p class="t">开机自启</p>
+      <p class="d">开机后自动在后台待命，需要时再唤出面板</p>
+    </div>
+    <input
+      class="switch"
+      type="checkbox"
+      bind:checked={autostart}
+      onchange={() => invoke("set_autostart", { enabled: autostart }).catch(() => {})}
+    />
   </label>
 
   <div class="item">

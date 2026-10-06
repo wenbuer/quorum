@@ -37,6 +37,20 @@
 </script>
 
 <div class="panel">
+  <header class="title" data-tauri-drag-region>
+    <span class="mark" aria-hidden="true">
+      <svg viewBox="0 0 1024 1024" width="17" height="17">
+        <rect width="1024" height="1024" rx="228" fill="var(--brand)" />
+        <path
+          d="M300 352h424c53 0 96 43 96 96v112c0 53-43 96-96 96H520l-108 108V656H300c-53 0-96-43-96-96V448c0-53 43-96 96-96z"
+          fill="#fff"
+        />
+        <rect x="352" y="464" width="248" height="64" rx="32" fill="#23c3d8" />
+      </svg>
+    </span>
+    <span class="brand">AAIL</span>
+  </header>
+
   <Composer domain={tab} {onopen} {onswitch} />
 
   <header class="bar" data-tauri-drag-region>
@@ -106,6 +120,28 @@
     background: var(--bg);
     /* Without this the inner paint squares off the window's rounded corners. */
     border-radius: inherit;
+  }
+
+  .title {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 9px 14px 0;
+  }
+
+  .mark {
+    display: grid;
+    place-items: center;
+    border-radius: 5px;
+    overflow: hidden;
+    flex: none;
+  }
+
+  .brand {
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    color: var(--text-3);
   }
 
   .bar {

@@ -54,6 +54,9 @@ const HOTKEY_CANDIDATES: [(Modifiers, Code, &str); 4] = [
 
 const POPUP_LABEL: &str = "popup";
 const CAPSULE_CLOSE: &str = "capsule-close";
+const CAPSULE_RESTART: &str = "capsule-restart";
+const AUTOSTART_KEY: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
+const AUTOSTART_VALUE: &str = "AAIL";
 
 /// Raised for the whole lifetime of the level-2 window. The main window must not read
 /// "the popup just took focus" as "the user walked away", or opening the editor hides its
@@ -506,9 +509,56 @@ async fn open_popup(app: AppHandle) -> Result<(), String> {
 // nowhere to live.
 #[tauri::command]
 async fn capsule_menu(window: WebviewWindow, app: AppHandle) -> Result<(), String> {
+    let restart =
+        MenuItem::with_id(&app, CAPSULE_RESTART, "重启", true, None::<&str>).map_err(|e| e.to_string())?;
     let close = MenuItem::with_id(&app, CAPSULE_CLOSE, "关闭", true, None::<&str>).map_err(|e| e.to_string())?;
-    let menu = Menu::with_items(&app, &[&close]).map_err(|e| e.to_string())?;
+    let menu = Menu::with_items(&app, &[&restart, &close]).map_err(|e| e.to_string())?;
     window.popup_menu(&menu).map_err(|e| e.to_string())
+}
+
+/// One registry value, no dependency: reg.exe ships with Windows and its exit code is the
+/// whole answer we need. Windows only -- this build ships for Windows.
+fn reg(args: &[&str]) -> bool {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    std::process::Command::new("reg")
+        .args(args)
+        .creation_flags(CREATE_NO_WINDOW)
+        .status()
+        .map(|status| status.success())
+        .unwrap_or(false)
+}
+
+#[tauri::command]
+fn autostart_enabled() -> bool {
+    reg(&["query", AUTOSTART_KEY, "/v", AUTOSTART_VALUE])
+}
+
+#[tauri::command]
+fn set_autostart(enabled: bool) -> Result<(), String> {
+    let ok = if enabled {
+        let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+        // Quoted: the install path can contain spaces.
+        reg(&[
+            "add",
+            AUTOSTART_KEY,
+            "/v",
+            AUTOSTART_VALUE,
+            "/t",
+            "REG_SZ",
+            "/d",
+            &format!("\"{}\"", exe.display()),
+            "/f",
+        ])
+    } else {
+        // Nothing to delete is not a failure.
+        reg(&["delete", AUTOSTART_KEY, "/v", AUTOSTART_VALUE, "/f"]) || !autostart_enabled()
+    };
+    if ok {
+        Ok(())
+    } else {
+        Err("registry update failed".into())
+    }
 }
 
 // The frontend drives capsule states on hover; the kernel only owns geometry.
@@ -534,7 +584,9 @@ pub fn run() {
             list_dir,
             active_hotkey,
             open_popup,
-            capsule_menu
+            capsule_menu,
+            autostart_enabled,
+            set_autostart
         ])
         .setup(|app| {
             let handle = app.handle().clone();
@@ -613,10 +665,12 @@ pub fn run() {
                         });
                     }
                 });
-                window.on_menu_event(|window, event| {
-                    if event.id.as_ref() == CAPSULE_CLOSE {
+                window.on_menu_event(|window, event| match event.id.as_ref() {
+                    CAPSULE_RESTART => window.app_handle().restart(),
+                    CAPSULE_CLOSE => {
                         let _ = window.hide();
                     }
+                    _ => {}
                 });
             }
 
