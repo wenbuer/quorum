@@ -214,25 +214,23 @@ fn now_ms() -> u64 {
         .unwrap_or(0)
 }
 
-/// Hug the nearest edge the moment the drag gets close, instead of waiting for the drag
-/// to end. Windows clamps at the screen edge, so this mostly covers the magnet gap.
-fn magnet(window: &WebviewWindow) {
-    let Some(side) = edge_near(window) else { return };
-    let (x, y, w, h) = current_spot(window);
-    let (tx, ty) = snap_spot(window, side, w, h, (x, y));
-    if (tx - x).abs() < 0.5 && (ty - y).abs() < 0.5 {
-        return;
-    }
-    mark_placed(tx, ty);
-    let _ = window.set_position(LogicalPosition::new(tx, ty));
-    if let Ok(mut held) = EDGE_SIDE.lock() {
-        *held = Some(side);
-    }
+/// The drag loop is a modal OS loop and never tells us the button came up. Asking the OS
+/// directly is the only reliable answer -- a pause in the move events is NOT a drop.
+fn button_held() -> bool {
+    const VK_LBUTTON: i32 = 0x01;
+    const DOWN: u16 = 0x8000;
+    unsafe { GET_ASYNC_KEY_STATE(VK_LBUTTON) as u16 & DOWN != 0 }
 }
 
-/// The OS drag loop is modal and never tells us the button came up, so a pause in the
-/// move events is the drop. Without this the capsule only parks when the pointer later
-/// leaves it -- which reads as "it snaps only after I walk away".
+#[link(name = "user32")]
+extern "system" {
+    #[link_name = "GetAsyncKeyState"]
+    fn GET_ASYNC_KEY_STATE(vkey: i32) -> i16;
+}
+
+/// Settle once the drag is actually over. The earlier "no move events for a moment" guess
+/// fired during ordinary drag pauses, which collapsed the window under the cursor and made
+/// it feel glued to whatever edge it was near.
 fn arm_settle(window: &WebviewWindow) {
     LAST_MOVE.store(now_ms(), Ordering::Relaxed);
     if WATCHING.swap(true, Ordering::Relaxed) {
@@ -240,8 +238,18 @@ fn arm_settle(window: &WebviewWindow) {
     }
     let app = window.app_handle().clone();
     std::thread::spawn(move || loop {
-        std::thread::sleep(std::time::Duration::from_millis(120));
-        if now_ms().saturating_sub(LAST_MOVE.load(Ordering::Relaxed)) < 350 {
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        let idle = now_ms().saturating_sub(LAST_MOVE.load(Ordering::Relaxed));
+        if button_held() {
+            // A held button means the drag is still live. Give up watching after a long
+            // pause so a stuck reading cannot keep this thread alive forever.
+            if idle > 4000 {
+                WATCHING.store(false, Ordering::Relaxed);
+                return;
+            }
+            continue;
+        }
+        if idle < 250 {
             continue;
         }
         WATCHING.store(false, Ordering::Relaxed);
@@ -662,7 +670,6 @@ pub fn run() {
                             _ => {
                                 // Only a hand drag reaches here: our own placements are
                                 // filtered out by was_placed_at above.
-                                magnet(&w);
                                 arm_settle(&w);
                                 remember(&CAPSULE_POS, spot.0, spot.1);
                             }

@@ -148,7 +148,14 @@
 {#if isPopup}
   <Popup onclose={closeSelf} />
 {:else}
-  <div class="root" data-mode={mode} onmouseenter={onEnter} onmouseleave={onLeave} role="presentation">
+  <div
+    class="root"
+    data-mode={mode}
+    style="--capsule:{settings.capsule}"
+    onmouseenter={onEnter}
+    onmouseleave={onLeave}
+    role="presentation"
+  >
     {#if mode === "panel"}
       <Panel
         {route}

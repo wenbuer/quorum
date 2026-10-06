@@ -60,7 +60,18 @@ const on = (offset: number) => {
 
 export const view = $state({ day: todayKey });
 
-export const settings = $state({ floatingIcon: true, hotkey: "" });
+/// Light tints only: the capsule keeps its dark text, so anything that would need a
+/// second text colour is out of scope here.
+export const CAPSULE_TONES = [
+  { name: "天青", value: "#e7f7fa" },
+  { name: "薄荷", value: "#e4f6ed" },
+  { name: "丁香", value: "#eae9fb" },
+  { name: "米杏", value: "#fcf0e2" },
+  { name: "藕荷", value: "#fbe9f0" },
+  { name: "雾灰", value: "#eef0f4" },
+];
+
+export const settings = $state({ floatingIcon: true, hotkey: "", capsule: "#e7f7fa" });
 
 export function domainOf(route: Route): Domain {
   switch (route.name) {

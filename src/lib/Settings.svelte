@@ -1,6 +1,6 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
-  import { settings } from "./store.svelte";
+  import { CAPSULE_TONES, settings } from "./store.svelte";
 
   // The registry is the truth, so read it back instead of trusting a UI flag.
   let autostart = $state(false);
@@ -41,6 +41,27 @@
       onchange={() => invoke("set_autostart", { enabled: autostart }).catch(() => {})}
     />
   </label>
+
+  <div class="item">
+    <div>
+      <p class="t">悬浮窗颜色</p>
+      <p class="d">胶囊和清单的底色</p>
+    </div>
+    <div class="tones">
+      {#each CAPSULE_TONES as tone (tone.value)}
+        <button
+          class="tone"
+          class:on={settings.capsule === tone.value}
+          style="--tone:{tone.value}"
+          onclick={() => (settings.capsule = tone.value)}
+          aria-label={tone.name}
+        ></button>
+      {/each}
+      <label class="pick" aria-label="自定义颜色">
+        <input type="color" bind:value={settings.capsule} />
+      </label>
+    </div>
+  </div>
 
   <div class="item">
     <div>
@@ -90,6 +111,52 @@
     font-size: 12px;
     color: var(--text-2);
     flex: none;
+  }
+
+  .tones {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    flex: none;
+  }
+
+  .tone {
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: 1px solid var(--line-strong);
+    border-radius: 50%;
+    background: var(--tone);
+    cursor: pointer;
+  }
+
+  .tone.on {
+    border-color: var(--brand);
+    box-shadow: 0 0 0 2px var(--brand-dim);
+  }
+
+  /* Native picker, hidden under a rainbow chip. */
+  .pick {
+    position: relative;
+    width: 22px;
+    height: 22px;
+    border: 1px solid var(--line-strong);
+    border-radius: 50%;
+    overflow: hidden;
+    cursor: pointer;
+    background: conic-gradient(#f04a4a, #f59e0b, #22b07d, #2b6cf6, #a855f7, #f04a4a);
+  }
+
+  .pick input {
+    position: absolute;
+    inset: -10px;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: 0;
+    background: none;
+    opacity: 0;
+    cursor: pointer;
   }
 
   .switch {
