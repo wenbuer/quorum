@@ -130,11 +130,21 @@ export const projects = $state<Project[]>([
   { id: "blog", name: "博客重构", note: "", paths: ["G:\\blog"] },
 ]);
 
+// Demo data: spread today's plans over whatever is left of the day, so the capsule always
+// has something real to count down to instead of a hardcoded morning that has already gone.
+const hoursNow = new Date().getHours() + new Date().getMinutes() / 60;
+const room = Math.max(2, 22.5 - hoursNow);
+const at = (share: number) => Math.round((hoursNow + room * share) * 100) / 100;
+const soon = at(0.15);
+const mid = at(0.45);
+const late = at(0.8);
+const earlier = Math.max(0.3, Math.round((hoursNow - 1.6) * 100) / 100);
+
 export const plans = $state<Plan[]>([
-  { id: nextId("p"), day: on(0), start: 9.5, end: 10.1, title: "开盘前复盘", note: "", role: "编排", level: "L1", repeat: "daily", done: true },
-  { id: nextId("p"), day: on(0), start: 12.07, end: 12.75, title: "API 方案评审", note: "过一遍接口草案", role: "编排", level: "L3", repeat: "once", done: false },
-  { id: nextId("p"), day: on(0), start: 15, end: 15.9, title: "竞品拆解 · 复盘", note: "", role: "归档", level: "L2", repeat: "once", done: false },
-  { id: nextId("p"), day: on(0), start: 19.5, end: 20.3, title: "周报提纲", note: "", role: "编排", level: "L1", repeat: "daily", done: false },
+  { id: nextId("p"), day: on(0), start: earlier, end: earlier + 0.6, title: "开盘前复盘", note: "", role: "编排", level: "L1", repeat: "daily", done: true },
+  { id: nextId("p"), day: on(0), start: soon, end: soon + 0.7, title: "API 方案评审", note: "过一遍接口草案", role: "编排", level: "L3", repeat: "once", done: false },
+  { id: nextId("p"), day: on(0), start: mid, end: mid + 0.9, title: "竞品拆解 · 复盘", note: "", role: "归档", level: "L2", repeat: "once", done: false },
+  { id: nextId("p"), day: on(0), start: late, end: late + 0.8, title: "周报提纲", note: "", role: "编排", level: "L1", repeat: "daily", done: false },
   { id: nextId("p"), day: on(3), start: 10, end: 10.5, title: "季度对账", note: "", role: "归档", level: "L2", repeat: "once", done: false },
   { id: nextId("p"), day: on(5), start: 14, end: 14.5, title: "供应商沟通", note: "", role: "哨兵", level: "L1", repeat: "once", done: false },
 ]);

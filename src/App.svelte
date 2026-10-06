@@ -172,13 +172,14 @@
     display: flex;
   }
 
-  /* Floating: a real capsule -- both ends round, clear of any edge. */
+  /* Floating: a real capsule -- both ends round, clear of any edge.
+     No box-shadow: the window is exactly the size of the pill, so a shadow can only paint
+     inside the four corners -- which on a transparent window reads as a grey haze. */
   .root[data-mode="capsule"] {
     align-items: stretch;
     border-radius: var(--r-capsule);
     border: 1px solid var(--line-strong);
     background: var(--capsule);
-    box-shadow: var(--shadow-capsule);
   }
 
   /* Parked: the same pill, docked against the edge. A percentage radius would turn a
@@ -188,14 +189,14 @@
     border-radius: var(--r-capsule);
     border: 1px solid var(--line-strong);
     background: var(--capsule);
-    box-shadow: var(--shadow-capsule);
   }
 
+  /* Same reason as the capsule: the window is the panel, so its shadow can only land in
+     the four corner notches. */
   .root[data-mode="panel"] {
     border-radius: var(--r-panel);
     border: 1px solid var(--line-strong);
     background: var(--bg);
-    box-shadow: var(--shadow-panel);
     overflow: hidden;
   }
 </style>

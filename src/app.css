@@ -34,9 +34,6 @@
   --r-btn: 6px;
   --r-tag: 9px;
 
-  --shadow-capsule: 0 6px 20px rgba(31, 35, 41, 0.16);
-  --shadow-panel: 0 18px 44px rgba(31, 35, 41, 0.16), 0 2px 6px rgba(31, 35, 41, 0.06);
-
   --mono: "Cascadia Mono", Consolas, ui-monospace, monospace;
   --sans: "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif;
 }
@@ -60,6 +57,7 @@ body {
 
 #app {
   height: 100%;
+  background: transparent;
 }
 
 .num {

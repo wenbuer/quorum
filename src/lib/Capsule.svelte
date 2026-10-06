@@ -1,29 +1,53 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { getCurrentWindow } from "@tauri-apps/api/window";
-  import { plans } from "./store.svelte";
+  import { plans, todayKey } from "./store.svelte";
 
   let { edge = false, onopen }: { edge?: boolean; onopen: () => void } = $props();
 
-  const target = Date.now() + 12 * 60 * 1000 + 4000;
-  let remaining = $state(target - Date.now());
+  let at = $state(Date.now());
 
   $effect(() => {
-    const tick = setInterval(() => {
-      remaining = Math.max(0, remaining === 0 ? 0 : target - Date.now());
-    }, 500);
+    const tick = setInterval(() => (at = Date.now()), 1000);
     return () => clearInterval(tick);
   });
 
-  const mm = $derived(String(Math.floor(remaining / 60000)).padStart(2, "0"));
-  const ss = $derived(String(Math.floor((remaining % 60000) / 1000)).padStart(2, "0"));
-  const next = $derived(plans.find((p) => !p.done) ?? plans[0]);
-  const start = $derived(
-    next
-      ? String(Math.floor(next.start)).padStart(2, "0") +
-          ":" +
-          String(Math.round((next.start % 1) * 60)).padStart(2, "0")
-      : "",
+  const today = $derived(plans.filter((p) => p.day === todayKey).sort((a, b) => a.start - b.start));
+  const pending = $derived(today.filter((p) => !p.done));
+  // Prefer one that has not run out yet; if the day is behind us, still talk about the first.
+  const upcoming = $derived(pending.filter((p) => hourAt(p.end) > at));
+  const next = $derived(upcoming[0] ?? pending[0]);
+  const rest = $derived(Math.max(0, (upcoming.length || pending.length) - 1));
+  const left = $derived(next ? hourAt(next.start) - at : 0);
+  const stage = $derived(
+    !next ? "idle" : at < hourAt(next.start) ? "before" : at <= hourAt(next.end) ? "running" : "missed",
+  );
+
+  function hourAt(hour: number) {
+    const date = new Date();
+    date.setHours(Math.floor(hour), Math.round((hour % 1) * 60), 0, 0);
+    return date.getTime();
+  }
+
+  function hhmm(hour: number) {
+    const h = String(Math.floor(hour)).padStart(2, "0");
+    const m = String(Math.round((hour % 1) * 60)).padStart(2, "0");
+    return h + ":" + m;
+  }
+
+  /// Hours only show up once they matter; under an hour it is a plain minute:second clock.
+  function countdown(ms: number) {
+    const total = Math.max(0, Math.floor(ms / 1000));
+    const h = Math.floor(total / 3600);
+    const m = String(Math.floor((total % 3600) / 60)).padStart(2, "0");
+    const s = String(total % 60).padStart(2, "0");
+    return h > 0 ? h + ":" + m + ":" + s : m + ":" + s;
+  }
+
+  const idleTitle = $derived(today.length > 0 ? "今天的安排都做完了" : "今天没有安排");
+  const idleNote = $derived(today.length > 0 ? "共 " + today.length + " 项" : "写下今天的打算");
+  const todayLabel = $derived(
+    new Date().getMonth() + 1 + "/" + String(new Date().getDate()).padStart(2, "0"),
   );
 
   // The whole surface drags, but a press that never moves is a click. Without this split the
@@ -69,17 +93,32 @@
   }
 </script>
 
-{#if edge}
-  <button class="parked" onmousedown={onDown} oncontextmenu={onMenu} aria-label="打开面板">
-    <span class="mark" aria-hidden="true">
+{#snippet mark()}
+  <span class="mark" class:dim={!next} class:ok={!next && today.length > 0} aria-hidden="true">
+    {#if !next && today.length > 0}
+      <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8">
+        <path d="M3.5 8.4l3 3 6-6.6" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+    {:else}
       <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6">
         <circle cx="8" cy="8" r="5.6" />
         <path d="M8 5.2v3l2 1.4" stroke-linecap="round" />
       </svg>
-    </span>
+    {/if}
+  </span>
+{/snippet}
+
+{#if edge}
+  <button class="parked" onmousedown={onDown} oncontextmenu={onMenu} aria-label="打开面板">
+    {@render mark()}
     <span class="body">
-      <span class="num park-time">{mm}:{ss}</span>
-      <span class="park-title">{next?.title ?? "暂无计划"}</span>
+      {#if next}
+        <span class="num park-time">{stage === "before" ? countdown(left) : stage === "running" ? "进行中" : "已错过"}</span>
+        <span class="park-title">{next.title}{rest ? " +" + rest : ""}</span>
+      {:else}
+        <span class="num park-time">{today.length > 0 ? "完成" : "待命"}</span>
+        <span class="park-title">{today.length > 0 ? "共 " + today.length + " 项" : "今天没有安排"}</span>
+      {/if}
     </span>
   </button>
 {:else}
@@ -92,17 +131,20 @@
     aria-label="拖动，或点击打开面板"
     onkeydown={(e) => e.key === "Enter" && onopen()}
   >
-    <span class="mark" aria-hidden="true">
-      <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5">
-        <circle cx="8" cy="8" r="5.6" />
-        <path d="M8 5.2v3l2 1.4" stroke-linecap="round" />
-      </svg>
-    </span>
+    {@render mark()}
     <span class="body">
-      <span class="title">{next?.title ?? "暂无计划"}</span>
-      <span class="tag">{next ? next.role + " · " + start + " 开始" : "还没有计划"}</span>
+      <span class="title">{next ? next.title : idleTitle}</span>
+      <span class="tag"
+        >{next
+          ? next.role + " · " + hhmm(next.start) + " 开始" + (rest ? " · 还有 " + rest + " 项" : "")
+          : idleNote}</span
+      >
     </span>
-    <span class="num count">{mm}:{ss}</span>
+    {#if next}
+      <span class="num count">{stage === "before" ? countdown(left) : stage === "running" ? "进行中" : "已错过"}</span>
+    {:else}
+      <span class="num date">{todayLabel}</span>
+    {/if}
   </div>
 {/if}
 
@@ -179,6 +221,17 @@
     flex: none;
   }
 
+  /* Nothing scheduled: the mark steps back instead of shouting. */
+  .mark.dim {
+    color: var(--text-3);
+    background: var(--pressed);
+  }
+
+  .mark.ok {
+    color: var(--green);
+    background: var(--green-dim);
+  }
+
   .body {
     display: flex;
     flex-direction: column;
@@ -200,12 +253,21 @@
   .tag {
     font-size: 10px;
     color: var(--text-3);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .count {
     font-size: 15px;
     font-weight: 600;
     color: var(--brand);
+    flex: none;
+  }
+
+  .date {
+    font-size: 12px;
+    color: var(--text-4);
     flex: none;
   }
 </style>
