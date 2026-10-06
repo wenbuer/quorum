@@ -71,7 +71,34 @@ export const CAPSULE_TONES = [
   { name: "雾灰", value: "#eef0f4" },
 ];
 
-export const settings = $state({ floatingIcon: true, hotkey: "", capsule: "#e7f7fa" });
+export type Llm = { provider: string; baseUrl: string; model: string; apiKey: string };
+
+/// OpenAI-compatible endpoints only: one request shape covers the cloud ones and the
+/// local runtimes, so nothing here is provider-specific yet.
+export const LLM_PRESETS = [
+  { id: "openai", name: "OpenAI", baseUrl: "https://api.openai.com/v1", model: "gpt-4o-mini" },
+  { id: "deepseek", name: "DeepSeek", baseUrl: "https://api.deepseek.com/v1", model: "deepseek-chat" },
+  {
+    id: "qwen",
+    name: "通义千问",
+    baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    model: "qwen-plus",
+  },
+  { id: "ollama", name: "Ollama 本机", baseUrl: "http://127.0.0.1:11434/v1", model: "qwen2.5:7b" },
+  { id: "custom", name: "自定义", baseUrl: "", model: "" },
+];
+
+export const settings = $state({
+  floatingIcon: true,
+  hotkey: "",
+  capsule: "#e7f7fa",
+  llm: {
+    provider: "openai",
+    baseUrl: "https://api.openai.com/v1",
+    model: "gpt-4o-mini",
+    apiKey: "",
+  } as Llm,
+});
 
 export function domainOf(route: Route): Domain {
   switch (route.name) {

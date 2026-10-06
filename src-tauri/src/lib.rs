@@ -405,6 +405,63 @@ fn active_hotkey() -> String {
     ACTIVE_HOTKEY.lock().map(|held| held.clone()).unwrap_or_default()
 }
 
+// Settings live in one JSON file the frontend owns the shape of: the kernel only knows
+// where it is. SQLite arrives with the task model in M1; this is the pre-database version.
+fn settings_path(app: &AppHandle) -> Option<std::path::PathBuf> {
+    app.path()
+        .app_config_dir()
+        .ok()
+        .map(|dir| dir.join("settings.json"))
+}
+
+#[tauri::command]
+fn load_settings(app: AppHandle) -> serde_json::Value {
+    settings_path(&app)
+        .and_then(|path| std::fs::read_to_string(path).ok())
+        .and_then(|raw| serde_json::from_str(&raw).ok())
+        .unwrap_or_else(|| serde_json::json!({}))
+}
+
+#[tauri::command]
+fn save_settings(app: AppHandle, settings: serde_json::Value) -> Result<(), String> {
+    let path = settings_path(&app).ok_or("no config directory")?;
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    }
+    let raw = serde_json::to_string_pretty(&settings).map_err(|e| e.to_string())?;
+    std::fs::write(path, raw).map_err(|e| e.to_string())
+}
+
+/// Rebind the global hotkey at runtime. RegisterHotKey is exclusive, so a shortcut someone
+/// else already owns must not leave the assistant without one: on failure the previous
+/// binding goes back.
+#[tauri::command]
+fn set_hotkey(app: AppHandle, spec: String) -> Result<String, String> {
+    let previous = ACTIVE_HOTKEY.lock().map(|held| held.clone()).unwrap_or_default();
+    if previous == spec {
+        return Ok(previous);
+    }
+    let shortcuts = app.global_shortcut();
+    if !previous.is_empty() {
+        let _ = shortcuts.unregister(previous.as_str());
+    }
+    match shortcuts.register(spec.as_str()) {
+        Ok(()) => {
+            if let Ok(mut held) = ACTIVE_HOTKEY.lock() {
+                *held = spec.clone();
+            }
+            let _ = app.emit("aail://hotkey", spec.clone());
+            Ok(spec)
+        }
+        Err(err) => {
+            if !previous.is_empty() {
+                let _ = shortcuts.register(previous.as_str());
+            }
+            Err(err.to_string())
+        }
+    }
+}
+
 fn set_current_mode(mode: &'static str) {
     if let Ok(mut current) = CURRENT_MODE.lock() {
         *current = mode;
@@ -617,7 +674,10 @@ pub fn run() {
             open_popup,
             capsule_menu,
             autostart_enabled,
-            set_autostart
+            set_autostart,
+            load_settings,
+            save_settings,
+            set_hotkey
         ])
         .setup(|app| {
             let handle = app.handle().clone();
@@ -717,27 +777,47 @@ pub fn run() {
                     .build(),
             )?;
 
-            let active = HOTKEY_CANDIDATES
-                .iter()
-                .find_map(|(mods, code, label)| {
-                    let shortcut = Shortcut::new(Some(*mods), *code);
-                    app.global_shortcut()
-                        .register(shortcut)
-                        .ok()
-                        .map(|_| *label)
+            // A shortcut the user picked wins over the chain; if the OS refuses it now
+            // (something grabbed it since) fall back rather than starting with none.
+            let saved = settings_path(app.handle())
+                .and_then(|path| std::fs::read_to_string(path).ok())
+                .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok())
+                .and_then(|value| {
+                    value
+                        .get("hotkey")
+                        .and_then(|held| held.as_str())
+                        .filter(|spec| !spec.is_empty())
+                        .map(|spec| spec.to_string())
                 });
 
-            if let Some(label) = active {
+            let active = saved
+                .and_then(|spec| {
+                    app.global_shortcut()
+                        .register(spec.as_str())
+                        .ok()
+                        .map(|_| spec)
+                })
+                .or_else(|| {
+                    HOTKEY_CANDIDATES.iter().find_map(|(mods, code, label)| {
+                        let shortcut = Shortcut::new(Some(*mods), *code);
+                        app.global_shortcut()
+                            .register(shortcut)
+                            .ok()
+                            .map(|_| label.to_string())
+                    })
+                });
+
+            if let Some(label) = &active {
                 if let Ok(mut held) = ACTIVE_HOTKEY.lock() {
-                    *held = label.to_string();
+                    *held = label.clone();
                 }
             }
-            match active {
+            match &active {
                 Some(label) => println!("[AAIL] global hotkey: {label}"),
                 None => eprintln!("[AAIL] no global hotkey could be registered; use the tray icon"),
             }
             if let Some(window) = app.get_webview_window("main") {
-                let _ = window.emit("aail://hotkey", active.unwrap_or(""));
+                let _ = window.emit("aail://hotkey", active.unwrap_or_default());
             }
 
             let _ = to_dock(app.handle(), "capsule");

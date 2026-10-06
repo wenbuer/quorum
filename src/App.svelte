@@ -108,6 +108,37 @@
     invoke("set_floating_icon", { enabled: settings.floatingIcon }).catch(() => {});
   });
 
+  // Settings live in a JSON file the kernel owns; the frontend owns the shape. The hotkey
+  // is deliberately not read back here: the kernel already registered it, and what it
+  // actually holds is the truth (a taken shortcut falls back to another one).
+  let restored = $state(false);
+  let saveTimer: ReturnType<typeof setTimeout> | undefined;
+
+  $effect(() => {
+    if (isPopup) return;
+    invoke<Record<string, unknown>>("load_settings")
+      .then((saved) => {
+        if (typeof saved.capsule === "string") settings.capsule = saved.capsule;
+        if (typeof saved.floatingIcon === "boolean") settings.floatingIcon = saved.floatingIcon;
+        if (saved.llm && typeof saved.llm === "object") Object.assign(settings.llm, saved.llm);
+      })
+      .catch(() => {})
+      .finally(() => (restored = true));
+  });
+
+  $effect(() => {
+    const snapshot = {
+      hotkey: settings.hotkey,
+      capsule: settings.capsule,
+      floatingIcon: settings.floatingIcon,
+      llm: { ...settings.llm },
+    };
+    // Never write before the read has landed, or the defaults would overwrite the file.
+    if (isPopup || !restored) return;
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => invoke("save_settings", { settings: snapshot }).catch(() => {}), 400);
+  });
+
   $effect(() => {
     if (isPopup) return;
     // The startup event races the listener, so ask for it once as well.
