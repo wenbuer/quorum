@@ -86,16 +86,19 @@
   const roleChip = $derived(chips.find((c) => c.kind === "role"));
   const actionChip = $derived(chips.find((c) => c.kind === "action"));
 
-  const placeholder = $derived.by(() => {
-    if (pending) return "填写" + pending.params[pending.filled.length];
-    if (domain === "role") return "输入角色名就能新建，或输入 / 选命令";
-    if (domain === "project") return "输入项目名就能新建，或输入 / 选命令";
-    if (domain === "settings") return "这一页没有命令，直接改下面的开关";
-    if (!project) return "写下计划，或输入 @ 选项目、/ 选命令";
-    if (!roleChip) return "输入 / 交给角色 或 /添加路径";
-    if (!actionChip) return "输入 / 添加路径，或直接执行";
-    return "补一句说明，然后执行";
-  });
+  /// Command ids match on characters in order, gaps allowed, so /计 finds both 新建计划 and
+  /// 查看计划. Prefix matching made people remember the verb before they could look anything up.
+  function spells(typed: string, id: string) {
+    const needle = typed.toLowerCase();
+    const hay = id.toLowerCase();
+    let at = 0;
+    for (const ch of needle) {
+      at = hay.indexOf(ch, at);
+      if (at < 0) return false;
+      at += 1;
+    }
+    return true;
+  }
 
   function reset() {
     text = "";
@@ -288,7 +291,7 @@
 
       const list = project ? projectCommands : commands;
       return list
-        .filter((c) => c.id.startsWith(head))
+        .filter((c) => spells(head, c.id))
         .map((c) => ({ id: c.id, note: c.note, run: () => run(c.id) }));
     }
 
@@ -500,7 +503,6 @@
       bind:value={text}
       maxlength={MAX_LEN}
       spellcheck="false"
-      {placeholder}
       oninput={() => { closed = false; hot = 0; }}
       onkeydown={onKeydown}
       onfocus={() => (closed = false)}
@@ -703,10 +705,6 @@
     font: inherit;
     font-size: 12.5px;
     outline: none;
-  }
-
-  input::placeholder {
-    color: var(--text-4);
   }
 
   .send {

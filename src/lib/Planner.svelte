@@ -396,7 +396,7 @@
   .wd {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
-    padding: 0 14px 2px;
+    padding: 0 14px 1px;
   }
 
   .wd span {
@@ -408,8 +408,8 @@
   .cgrid {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
-    gap: 2px;
-    padding: 0 14px 10px;
+    gap: 1px;
+    padding: 0 14px 8px;
   }
 
   .cell {
@@ -417,8 +417,8 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 2px;
-    height: 36px;
+    gap: 1px;
+    height: 28px;
     padding: 0;
     border: 0;
     border-radius: var(--r-btn);
@@ -435,10 +435,10 @@
   .cn {
     display: grid;
     place-items: center;
-    width: 24px;
-    height: 24px;
+    width: 21px;
+    height: 21px;
     border-radius: 50%;
-    font-size: 12px;
+    font-size: 11.5px;
     color: var(--text);
   }
 
