@@ -7,6 +7,7 @@
 //! Scheduler, role registry and permission gate land in M1/M2. Everything here is
 //! geometry plus the two things only the OS can give us: a global hotkey and a tray.
 
+use std::collections::HashSet;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::Mutex;
 
@@ -16,15 +17,16 @@ use tauri::{
     AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, WebviewWindow, Wry,
 };
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
+use tauri_plugin_notification::NotificationExt;
 
 // The panel is a fraction of the screen, clamped so it stays usable on both a small
 // laptop panel and a large desktop display. Fixed pixels looked cramped on 1440p.
-const PANEL_W_RATIO: f64 = 0.40;
-const PANEL_H_RATIO: f64 = 0.55;
-const PANEL_W_MIN: f64 = 760.0;
-const PANEL_W_MAX: f64 = 1120.0;
-const PANEL_H_MIN: f64 = 520.0;
-const PANEL_H_MAX: f64 = 800.0;
+const PANEL_W_RATIO: f64 = 0.46;
+const PANEL_H_RATIO: f64 = 0.62;
+const PANEL_W_MIN: f64 = 1000.0;
+const PANEL_W_MAX: f64 = 1440.0;
+const PANEL_H_MIN: f64 = 620.0;
+const PANEL_H_MAX: f64 = 940.0;
 const CAPSULE_W: f64 = 320.0;
 // The expanded capsule is the day's checklist, so its height follows the row count.
 const LIST_HEAD_H: f64 = 34.0;
@@ -67,8 +69,31 @@ const AUTOSTART_VALUE: &str = "Quorum";
 /// "the popup just took focus" as "the user walked away", or opening the editor hides its
 /// own parent. Checked before the window is registered too, closing that race.
 static POPUP_OPEN: AtomicBool = AtomicBool::new(false);
-const POPUP_W: f64 = 440.0;
-const POPUP_H: f64 = 560.0;
+// The popup window is the level-3 reminder card, and the app allows exactly one of them.
+const POPUP_W: f64 = 420.0;
+const POPUP_H: f64 = 230.0;
+/// A plan only fires while it is this fresh. Anything older was missed while the app was
+/// closed, and re-announcing yesterday's list on launch is worse than staying quiet.
+const REMIND_GRACE_MS: u64 = 10 * 60 * 1000;
+
+/// What the frontend says is coming up. It owns the calendar and the timezone, so it hands
+/// over an absolute instant per plan; the kernel only ever compares clocks.
+#[derive(Clone, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ScheduledItem {
+    id: String,
+    due_at: u64,
+    title: String,
+    level: String,
+}
+
+static SCHEDULE: Mutex<Vec<ScheduledItem>> = Mutex::new(Vec::new());
+/// Keyed by plan and instant, so a plan that is moved keeps its new slot and a daily plan
+/// fires again tomorrow. LazyLock only because HashSet::new is not const.
+static FIRED: std::sync::LazyLock<Mutex<HashSet<String>>> =
+    std::sync::LazyLock::new(|| Mutex::new(HashSet::new()));
+/// The level-3 card currently on screen; at most one, and it stays until answered.
+static REMINDER: Mutex<Option<ScheduledItem>> = Mutex::new(None);
 
 // Monitor geometry in logical pixels: (x, y, width, height).
 fn monitor_box(window: &WebviewWindow) -> (f64, f64, f64, f64) {
@@ -581,16 +606,113 @@ fn trace(msg: &str) {
     }
 }
 
-// Level 2 is a real detached window, and the whole app allows exactly one of them.
-// Asking for a second one raises the existing window instead of building another.
-// Must be async. A synchronous command runs on the main thread, and build() needs that
-// same thread to pump the event loop -- the window got created but never finished
-// initialising, leaving an empty transparent shell with no WebView2 renderer.
+/// The frontend hands over what is coming up; the kernel only compares clocks, because it
+/// has no business knowing about timezones. See `ScheduledItem`.
 #[tauri::command]
-async fn open_popup(app: AppHandle) -> Result<(), String> {
+fn set_schedule(items: Vec<ScheduledItem>) {
+    if let Ok(mut held) = SCHEDULE.lock() {
+        *held = items;
+    }
+}
+
+/// What the level-3 card should be showing. Read on mount as well as pushed by event: the
+/// window is built and the event fires before its webview has a listener.
+#[tauri::command]
+fn current_reminder() -> Option<ScheduledItem> {
+    REMINDER.lock().ok().and_then(|held| held.clone())
+}
+
+/// Answering the card. What the answer means for the plan itself is the main window's
+/// business -- it owns the list and the file -- so this forgets the card, puts the window
+/// away and passes the answer on.
+#[tauri::command]
+fn answer_reminder(app: AppHandle, id: String, action: String) {
+    if let Ok(mut held) = REMINDER.lock() {
+        *held = None;
+    }
+    if let Some(window) = app.get_webview_window(POPUP_LABEL) {
+        let _ = window.hide();
+    }
+    let _ = app.emit(
+        "quorum://remind-answered",
+        serde_json::json!({ "id": id, "action": action }),
+    );
+}
+
+/// A plan coming due is the kernel's job, not the webview's: it has to happen with the panel
+/// put away and the capsule parked, and a hidden webview's timers get throttled.
+fn start_scheduler(app: AppHandle) {
+    std::thread::spawn(move || loop {
+        std::thread::sleep(std::time::Duration::from_secs(20));
+        let now_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|gap| gap.as_millis() as u64)
+            .unwrap_or(0);
+        // Past the grace window a slot can never fire again, so drop it rather than let
+        // the ledger grow for the life of the process.
+        if let Ok(mut held) = FIRED.lock() {
+            held.retain(|key| match key.rsplit(':').next().and_then(|at| at.parse::<u64>().ok()) {
+                Some(at) => now_ms.saturating_sub(at) <= REMIND_GRACE_MS,
+                None => false,
+            });
+        }
+        let due: Vec<ScheduledItem> = match SCHEDULE.lock() {
+            Ok(held) => held.clone(),
+            Err(_) => continue,
+        };
+        for item in due {
+            // L1 stays silent on purpose: the capsule already carries it.
+            if item.level != "L2" && item.level != "L3" {
+                continue;
+            }
+            if item.due_at > now_ms || now_ms - item.due_at > REMIND_GRACE_MS {
+                continue;
+            }
+            // One card at a time. A second L3 is left unfired rather than swallowing the
+            // first, so it gets another look as soon as this one is answered.
+            if item.level == "L3"
+                && REMINDER.lock().map(|held| held.is_some()).unwrap_or(true)
+            {
+                continue;
+            }
+            let key = format!("{}:{}", item.id, item.due_at);
+            if !FIRED.lock().map(|mut held| held.insert(key)).unwrap_or(false) {
+                continue;
+            }
+            match item.level.as_str() {
+                "L2" => {
+                    let _ = app
+                        .notification()
+                        .builder()
+                        .title("智群")
+                        .body(&item.title)
+                        .show();
+                }
+                _ => {
+                    let _ = raise_reminder(&app, item);
+                }
+            }
+        }
+    });
+}
+
+fn raise_reminder(app: &AppHandle, item: ScheduledItem) -> Result<(), String> {
+    if let Ok(mut held) = REMINDER.lock() {
+        *held = Some(item.clone());
+    }
+    open_popup_window(app)?;
+    let _ = app.emit("quorum://remind", item);
+    Ok(())
+}
+
+// The whole app allows exactly one detached window, and the level-3 card is what uses it:
+// asking for a second one raises the existing window instead of building another.
+// Must not run on the main thread: build() needs that thread to pump the event loop, and a
+// synchronous command would have created the window but never finished initialising it,
+// leaving an empty transparent shell with no WebView2 renderer.
+fn open_popup_window(app: &AppHandle) -> Result<(), String> {
     POPUP_OPEN.store(true, Ordering::Relaxed);
     if let Some(existing) = app.get_webview_window(POPUP_LABEL) {
-        trace("  existing popup -> raise only");
         let _ = existing.show();
         let _ = existing.set_focus();
         return Ok(());
@@ -611,7 +733,7 @@ async fn open_popup(app: AppHandle) -> Result<(), String> {
     trace(&format!("  dev_url={:?}", app.config().build.dev_url));
     trace(&format!("  using url={url:?}"));
 
-    tauri::WebviewWindowBuilder::new(&app, POPUP_LABEL, url)
+    tauri::WebviewWindowBuilder::new(app, POPUP_LABEL, url)
         .title("智群")
         .inner_size(POPUP_W, POPUP_H)
         .resizable(false)
@@ -633,6 +755,11 @@ async fn open_popup(app: AppHandle) -> Result<(), String> {
             POPUP_OPEN.store(false, Ordering::Relaxed);
             e.to_string()
         })
+}
+
+#[tauri::command]
+async fn open_popup(app: AppHandle) -> Result<(), String> {
+    open_popup_window(&app)
 }
 
 // The capsule is 44px tall, so its menu has to be a native popup -- an in-page one has
@@ -727,6 +854,9 @@ pub fn run() {
             save_settings,
             load_data,
             save_data,
+            set_schedule,
+            current_reminder,
+            answer_reminder,
             set_hotkey
         ])
         .setup(|app| {
@@ -833,6 +963,11 @@ pub fn run() {
                     })
                     .build(),
             )?;
+
+            app.handle().plugin(tauri_plugin_notification::init())?;
+            // Reminders are the kernel's clock, not the webview's: this keeps ticking while
+            // the panel is put away.
+            start_scheduler(app.handle().clone());
 
             // A shortcut the user picked wins over the chain; if the OS refuses it now
             // (something grabbed it since) fall back rather than starting with none.

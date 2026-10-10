@@ -36,18 +36,15 @@
     if (seeded) ui.planDraft = null;
   });
 
-  // Greyed out is the honest state for these: a plan does not fire on a schedule yet (M1),
-  // and there is no notification channel yet (M2). Offering them as live switches would make
-  // the app promise something it cannot do.
   const levels: { id: Level; label: string; hint: string; ready: boolean }[] = [
     { id: "L1", label: "静默", hint: "只在贴边胶囊和日历里出现", ready: true },
-    { id: "L2", label: "系统通知", hint: "进 Windows 通知中心 · 还没接", ready: false },
-    { id: "L3", label: "强提醒", hint: "停在最前面等你回应 · 还没接", ready: false },
+    { id: "L2", label: "系统通知", hint: "到点弹一条 Windows 通知", ready: true },
+    { id: "L3", label: "强提醒", hint: "到点弹一张卡片，停在你回应为止", ready: true },
   ];
 
   const repeats: { id: Repeat; label: string; ready: boolean }[] = [
     { id: "once", label: "一次", ready: true },
-    { id: "daily", label: "每天", ready: false },
+    { id: "daily", label: "每天", ready: true },
   ];
 
   /// Hours are decimals in the store (9.5) and "09:30" in a time input.
@@ -160,8 +157,6 @@
         {/each}
       </select>
     </div>
-
-    <p class="note">「每天」和两种提醒还没接上，所以先灰着：现在建的计划会出现在胶囊和日历里，但不会自己弹出来。</p>
 
     <div class="actions">
       {#if existing}

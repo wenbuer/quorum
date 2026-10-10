@@ -81,14 +81,6 @@
     invoke("set_mode", { mode: "restore" }).catch((e) => console.error("restore failed", e));
   }
 
-  function closeSelf() {
-    try {
-      getCurrentWindow().close();
-    } catch {
-      /* browser preview */
-    }
-  }
-
   function onEnter() {
     clearTimeout(collapseTimer);
     if (mode === "edge") setMode("capsule");
@@ -101,9 +93,10 @@
   }
 
   function onKeydown(event: KeyboardEvent) {
-    if (event.key !== "Escape") return;
-    if (isPopup) closeSelf();
-    else if (ui.drawer) ui.drawer = null;
+    // Escape never answers a strong reminder: that card is meant to stay until it is
+    // actually dealt with, and a stray keypress should not count as dealing with it.
+    if (event.key !== "Escape" || isPopup) return;
+    if (ui.drawer) ui.drawer = null;
     else restore();
   }
 
@@ -142,6 +135,39 @@
     if (isPopup || !restored) return;
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => invoke("save_settings", { settings: snapshot }).catch(() => {}), 400);
+  });
+
+  // Reminders are the kernel's clock, not this one's: it keeps ticking with the panel put
+  // away and the capsule parked, where a hidden webview's timers get throttled. All it needs
+  // from here is the list, as absolute instants -- it has no business knowing a timezone.
+  function dueAt(plan: Plan) {
+    const [y, m, d] = plan.day.split("-").map(Number);
+    const hour = Math.floor(plan.start);
+    return new Date(y, m - 1, d, hour, Math.round((plan.start - hour) * 60)).getTime();
+  }
+
+  let minute = $state(0);
+  $effect(() => {
+    const id = setInterval(() => (minute = Math.floor(Date.now() / 60000)), 30000);
+    return () => clearInterval(id);
+  });
+
+  const schedule = $derived.by(() => {
+    // Reading the minute is what lets a daily plan roll over to tomorrow by itself.
+    void minute;
+    const now = Date.now();
+    return plans
+      .filter((p) => !p.done)
+      .map((p) => {
+        let due = dueAt(p);
+        if (p.repeat === "daily" && due <= now) due += 86_400_000;
+        return { id: p.id, dueAt: due, title: p.title || "未命名计划", level: p.level };
+      });
+  });
+
+  $effect(() => {
+    if (isPopup) return;
+    invoke("set_schedule", { items: schedule }).catch(() => {});
   });
 
   // Plans, roles and projects get the same treatment one file over. They used to be seeds
@@ -201,6 +227,21 @@
       .then((un) => (disposed ? un() : stop.push(un)))
       .catch(() => {});
 
+    listen<{ id: string; action: string }>("quorum://remind-answered", (event) => {
+      const answer = event.payload;
+      const plan = answer && plans.find((p) => p.id === answer.id);
+      if (!plan) return;
+      if (answer.action === "done") plan.done = true;
+      // Snoozing moves the plan itself, so the new time is the one the list and the capsule
+      // show -- and the kernel re-reads it as a fresh, unfired slot.
+      if (answer.action === "snooze") {
+        plan.start += 10 / 60;
+        plan.end += 10 / 60;
+      }
+    })
+      .then((un) => (disposed ? un() : stop.push(un)))
+      .catch(() => {});
+
     listen("quorum://focus-lost", () => {
       if (mode === "panel") restore();
     })
@@ -217,7 +258,7 @@
 <svelte:window onkeydown={onKeydown} />
 
 {#if isPopup}
-  <Popup onclose={closeSelf} />
+  <Popup />
 {:else}
   <div
     class="root"

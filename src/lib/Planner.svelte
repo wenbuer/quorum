@@ -393,10 +393,12 @@
     color: var(--brand);
   }
 
+  /* Seven columns stretched across a 1000px panel put 120px between day numbers. Capped and
+     centred, it reads as one block instead of a ruler. */
   .wd {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
-    padding: 0 14px 1px;
+    padding: 0 14px 0;
   }
 
   .wd span {
@@ -409,7 +411,7 @@
     display: grid;
     grid-template-columns: repeat(7, 1fr);
     gap: 1px;
-    padding: 0 14px 8px;
+    padding: 0 14px 6px;
   }
 
   .cell {
@@ -417,8 +419,8 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 1px;
-    height: 28px;
+    gap: 0;
+    height: 22px;
     padding: 0;
     border: 0;
     border-radius: var(--r-btn);
@@ -435,10 +437,10 @@
   .cn {
     display: grid;
     place-items: center;
-    width: 21px;
-    height: 21px;
+    width: 19px;
+    height: 19px;
     border-radius: 50%;
-    font-size: 11.5px;
+    font-size: 11px;
     color: var(--text);
   }
 
@@ -461,13 +463,13 @@
 
   .dots {
     display: flex;
-    gap: 3px;
-    height: 4px;
+    gap: 2px;
+    height: 3px;
   }
 
   .dots i {
-    width: 4px;
-    height: 4px;
+    width: 3px;
+    height: 3px;
     border-radius: 50%;
     background: var(--text-4);
   }
