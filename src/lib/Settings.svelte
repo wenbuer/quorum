@@ -93,8 +93,8 @@
 
   <label class="item">
     <div>
-      <p class="t">开启悬浮图标</p>
-      <p class="d">开启后，胶囊贴到屏幕边缘会收成一小条；关掉则始终保持完整</p>
+      <p class="t">显示悬浮胶囊</p>
+      <p class="d">关掉后胶囊不再出现在桌面，只用热键或托盘唤出面板；再打开会放回原位</p>
     </div>
     <input class="switch" type="checkbox" bind:checked={settings.floatingIcon} />
   </label>

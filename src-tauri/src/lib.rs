@@ -13,7 +13,7 @@ use std::sync::Mutex;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, WebviewWindow,
+    AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, WebviewWindow, Wry,
 };
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 
@@ -108,8 +108,10 @@ static PARK_POS: Mutex<Option<(f64, f64)>> = Mutex::new(None);
 /// Some(side) while the capsule is parked against a screen edge. Only then does it collapse
 /// to the slim form -- floating free, or mid-drag, it stays open.
 static EDGE_SIDE: Mutex<Option<&'static str>> = Mutex::new(None);
-/// Whether the capsule may turn into the floating icon at all.
+/// Whether the capsule is on screen at all. One switch, two places to flip it -- the tray
+/// item and the settings page -- so the tray label has to follow a change made in either.
 static FLOATING_ICON: AtomicBool = AtomicBool::new(true);
+static FLOATING_ITEM: Mutex<Option<MenuItem<Wry>>> = Mutex::new(None);
 static CURRENT_MODE: Mutex<&'static str> = Mutex::new("capsule");
 /// The hotkey the OS actually granted, so the UI can show it instead of guessing. The
 /// startup event is easy to miss: the webview may not have a listener yet.
@@ -319,6 +321,10 @@ fn place_panel(window: &WebviewWindow) -> tauri::Result<()> {
 /// Called when the panel closes: put the capsule back exactly where it was, instead of
 /// treating the panel's own position as the user's latest choice.
 fn restore(app: &AppHandle) -> tauri::Result<()> {
+    // Floating switched off: closing the panel must not put a capsule back on screen.
+    if !FLOATING_ICON.load(Ordering::Relaxed) {
+        return main_window(app)?.hide();
+    }
     let parked = EDGE_SIDE.lock().ok().and_then(|side| *side);
     match parked {
         Some(_) => to_dock(app, "edge"),
@@ -328,14 +334,6 @@ fn restore(app: &AppHandle) -> tauri::Result<()> {
 
 fn settle(app: &AppHandle) -> tauri::Result<()> {
     let window = main_window(app)?;
-    if !FLOATING_ICON.load(Ordering::Relaxed) {
-        if let Ok(mut side) = EDGE_SIDE.lock() {
-            *side = None;
-        }
-        let (x, y, _, _) = current_spot(&window);
-        remember(&CAPSULE_POS, x, y);
-        return to_dock(app, "capsule");
-    }
     let near = edge_near(&window);
     let (x, y, _, _) = current_spot(&window);
     if let Ok(mut side) = EDGE_SIDE.lock() {
@@ -386,9 +384,32 @@ fn list_dir(path: String) -> Result<Vec<DirEntry>, String> {
     Ok(out)
 }
 
+/// The one switch behind the capsule's visibility. Turning it off puts the capsule away --
+/// but never while the panel is on screen, because the switch also lives in the settings
+/// page you are reading. Closing that panel afterwards hits restore(), which hides instead
+/// of docking. Turning it back on returns the capsule where it was parked.
+fn set_floating(app: &AppHandle, enabled: bool) {
+    if FLOATING_ICON.swap(enabled, Ordering::Relaxed) == enabled {
+        return;
+    }
+    if let Some(item) = FLOATING_ITEM.lock().ok().and_then(|held| held.clone()) {
+        let _ = item.set_text(if enabled { "关闭悬浮胶囊" } else { "开启悬浮胶囊" });
+    }
+    if let Ok(window) = main_window(app) {
+        if !enabled && !is_panel(&window) {
+            let _ = window.hide();
+        }
+        if enabled && !window.is_visible().unwrap_or(true) {
+            let _ = to_dock(app, "capsule");
+        }
+    }
+    // The settings page keeps this in a switch of its own; it must not drift out of sync.
+    let _ = app.emit("quorum://floating", enabled);
+}
+
 #[tauri::command]
-fn set_floating_icon(enabled: bool) {
-    FLOATING_ICON.store(enabled, Ordering::Relaxed);
+fn set_floating_icon(app: AppHandle, enabled: bool) {
+    set_floating(&app, enabled);
 }
 
 /// The list grows and shrinks with the day, so the frontend reports its row count.
@@ -518,6 +539,11 @@ fn to_dock(app: &AppHandle, mode: &'static str) -> tauri::Result<()> {
 fn toggle_panel(app: &AppHandle) -> tauri::Result<()> {
     let window = main_window(app)?;
     if is_panel(&window) && window.is_visible()? {
+        // With the capsule switched off there is nowhere to dock back to, and putting one
+        // on screen anyway would contradict the switch the user just flipped.
+        if !FLOATING_ICON.load(Ordering::Relaxed) {
+            return window.hide();
+        }
         to_dock(app, "capsule")
     } else {
         open_panel(app)
@@ -688,9 +714,14 @@ pub fn run() {
             let handle = app.handle().clone();
 
             let panel_item = MenuItem::with_id(app, "panel", "打开面板", true, None::<&str>)?;
-            let hide_item = MenuItem::with_id(app, "hide", "关闭悬浮胶囊", true, None::<&str>)?;
+            let floating_item =
+                MenuItem::with_id(app, "floating", "关闭悬浮胶囊", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&panel_item, &hide_item, &quit_item])?;
+            let menu = Menu::with_items(app, &[&panel_item, &floating_item, &quit_item])?;
+            // Kept so a flip from the settings page can relabel the tray item too.
+            if let Ok(mut held) = FLOATING_ITEM.lock() {
+                *held = Some(floating_item.clone());
+            }
 
             let mut tray = TrayIconBuilder::new().tooltip("智群");
             if let Some(icon) = app.default_window_icon() {
@@ -702,13 +733,7 @@ pub fn run() {
                     "panel" => {
                         let _ = open_panel(app);
                     }
-                    // Hiding is not quitting: the hotkey and 打开面板 both still summon it,
-                    // so the tray stays a way back from a capsule the user put away.
-                    "hide" => {
-                        if let Ok(window) = main_window(app) {
-                            let _ = window.hide();
-                        }
-                    }
+                    "floating" => set_floating(app, !FLOATING_ICON.load(Ordering::Relaxed)),
                     "quit" => app.exit(0),
                     _ => {}
                 })

@@ -161,6 +161,13 @@
       .then((un) => (disposed ? un() : stop.push(un)))
       .catch(() => {});
 
+    // The tray item flips the same preference the settings page owns.
+    listen<boolean>("quorum://floating", (event) => {
+      settings.floatingIcon = event.payload ?? true;
+    })
+      .then((un) => (disposed ? un() : stop.push(un)))
+      .catch(() => {});
+
     listen("quorum://focus-lost", () => {
       if (mode === "panel") restore();
     })
