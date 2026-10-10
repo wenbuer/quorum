@@ -688,8 +688,9 @@ pub fn run() {
             let handle = app.handle().clone();
 
             let panel_item = MenuItem::with_id(app, "panel", "打开面板", true, None::<&str>)?;
+            let hide_item = MenuItem::with_id(app, "hide", "关闭悬浮胶囊", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&panel_item, &quit_item])?;
+            let menu = Menu::with_items(app, &[&panel_item, &hide_item, &quit_item])?;
 
             let mut tray = TrayIconBuilder::new().tooltip("智群");
             if let Some(icon) = app.default_window_icon() {
@@ -700,6 +701,13 @@ pub fn run() {
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "panel" => {
                         let _ = open_panel(app);
+                    }
+                    // Hiding is not quitting: the hotkey and 打开面板 both still summon it,
+                    // so the tray stays a way back from a capsule the user put away.
+                    "hide" => {
+                        if let Ok(window) = main_window(app) {
+                            let _ = window.hide();
+                        }
                     }
                     "quit" => app.exit(0),
                     _ => {}
