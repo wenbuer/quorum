@@ -384,11 +384,16 @@
 
 <div class="composer">
   <div class="row">
-    <span class="lead" aria-hidden="true">
+    <button
+      class="lead"
+      aria-label="新建计划"
+      onmousedown={(e) => e.preventDefault()}
+      onclick={() => run("/新建计划")}
+    >
       <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5">
         <path d="M8 3.2v9.6M3.2 8h9.6" stroke-linecap="round" />
       </svg>
-    </span>
+    </button>
 
     {#if pending}
       <span class="cmd">{pending.id}</span>
@@ -495,6 +500,15 @@
     place-items: center;
     color: var(--brand);
     flex: none;
+    border: 0;
+    background: none;
+    padding: 2px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  .lead:hover {
+    background: var(--brand-dim);
   }
 
   .chip {
