@@ -149,19 +149,19 @@
     const stop: Array<() => void> = [];
     let disposed = false;
 
-    listen<string>("aail://mode", (event) => {
+    listen<string>("quorum://mode", (event) => {
       mode = event.payload as Mode;
     })
       .then((un) => (disposed ? un() : stop.push(un)))
       .catch((e) => console.error("mode listener failed", e));
 
-    listen<string>("aail://hotkey", (event) => {
+    listen<string>("quorum://hotkey", (event) => {
       settings.hotkey = event.payload ?? "";
     })
       .then((un) => (disposed ? un() : stop.push(un)))
       .catch(() => {});
 
-    listen("aail://focus-lost", () => {
+    listen("quorum://focus-lost", () => {
       if (mode === "panel") restore();
     })
       .then((un) => (disposed ? un() : stop.push(un)))

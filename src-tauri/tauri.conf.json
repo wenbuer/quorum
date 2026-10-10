@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "aail",
+  "productName": "quorum",
   "version": "0.1.0",
-  "identifier": "com.wenbuer.aail",
+  "identifier": "com.wenbuer.quorum",
   "build": {
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:5183",
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "AAIL",
+        "title": "智群",
         "width": 320,
         "height": 44,
         "resizable": false,

@@ -163,7 +163,7 @@ export const roles = $state<Role[]>([
 ]);
 
 export const projects = $state<Project[]>([
-  { id: "aail", name: "AAIL", note: "桌面助手本体", paths: ["G:\\Projects\\aail"] },
+  { id: "self", name: "智群", note: "桌面助手本体", paths: ["G:\\Projects\\aail"] },
   { id: "thesis", name: "毕业论文", note: "", paths: [] },
   { id: "blog", name: "博客重构", note: "", paths: ["G:\\blog"] },
 ]);

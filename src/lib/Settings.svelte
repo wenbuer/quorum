@@ -177,7 +177,7 @@
     <span class="value">本机</span>
   </div>
 
-  <p class="about num">AAIL 0.1.0</p>
+  <p class="about num">智群 QUORUM 0.1.0</p>
 </div>
 
 <style>

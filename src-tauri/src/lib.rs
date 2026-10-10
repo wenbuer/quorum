@@ -1,8 +1,8 @@
-//! AAIL host -- M0.
+//! Quorum (智群) host -- M0.
 //!
 //! One window, two states:
-//!   capsule -- a 320px strip docked to the right edge (44px open, 6px sliver shut)
-//!   panel   -- a centred 680x460 work surface summoned with Alt+Space
+//!   capsule -- the day's checklist; parks as a small pill at a screen edge when idle
+//!   panel   -- the working surface summoned with the global hotkey
 //!
 //! Scheduler, role registry and permission gate land in M1/M2. Everything here is
 //! geometry plus the two things only the OS can give us: a global hotkey and a tray.
@@ -61,7 +61,7 @@ const POPUP_LABEL: &str = "popup";
 const CAPSULE_CLOSE: &str = "capsule-close";
 const CAPSULE_RESTART: &str = "capsule-restart";
 const AUTOSTART_KEY: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
-const AUTOSTART_VALUE: &str = "AAIL";
+const AUTOSTART_VALUE: &str = "Quorum";
 
 /// Raised for the whole lifetime of the level-2 window. The main window must not read
 /// "the popup just took focus" as "the user walked away", or opening the editor hides its
@@ -450,7 +450,7 @@ fn set_hotkey(app: AppHandle, spec: String) -> Result<String, String> {
             if let Ok(mut held) = ACTIVE_HOTKEY.lock() {
                 *held = spec.clone();
             }
-            let _ = app.emit("aail://hotkey", spec.clone());
+            let _ = app.emit("quorum://hotkey", spec.clone());
             Ok(spec)
         }
         Err(err) => {
@@ -472,7 +472,7 @@ fn announce(window: &WebviewWindow, mode: &'static str) {
     set_current_mode(mode);
     // Emit the bare string. Wrapping it in a struct once cost us a whole debugging round:
     // the frontend compared the payload to "panel" and got an object instead.
-    let _ = window.emit("aail://mode", mode);
+    let _ = window.emit("quorum://mode", mode);
 }
 
 fn main_window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
@@ -569,7 +569,7 @@ async fn open_popup(app: AppHandle) -> Result<(), String> {
     trace(&format!("  using url={url:?}"));
 
     tauri::WebviewWindowBuilder::new(&app, POPUP_LABEL, url)
-        .title("AAIL")
+        .title("智群")
         .inner_size(POPUP_W, POPUP_H)
         .resizable(false)
         .decorations(false)
@@ -691,7 +691,7 @@ pub fn run() {
             let quit_item = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&panel_item, &quit_item])?;
 
-            let mut tray = TrayIconBuilder::new().tooltip("AAIL");
+            let mut tray = TrayIconBuilder::new().tooltip("智群");
             if let Some(icon) = app.default_window_icon() {
                 tray = tray.icon(icon.clone());
             }
@@ -755,7 +755,7 @@ pub fn run() {
                         std::thread::spawn(move || {
                             std::thread::sleep(std::time::Duration::from_millis(280));
                             if let Ok(false) = win.is_focused() {
-                                let _ = win.emit("aail://focus-lost", ());
+                                let _ = win.emit("quorum://focus-lost", ());
                             }
                         });
                     }
@@ -818,16 +818,16 @@ pub fn run() {
                 }
             }
             match &active {
-                Some(label) => println!("[AAIL] global hotkey: {label}"),
-                None => eprintln!("[AAIL] no global hotkey could be registered; use the tray icon"),
+                Some(label) => println!("[Quorum] global hotkey: {label}"),
+                None => eprintln!("[Quorum] no global hotkey could be registered; use the tray icon"),
             }
             if let Some(window) = app.get_webview_window("main") {
-                let _ = window.emit("aail://hotkey", active.unwrap_or_default());
+                let _ = window.emit("quorum://hotkey", active.unwrap_or_default());
             }
 
             let _ = to_dock(app.handle(), "capsule");
             Ok(())
         })
         .run(tauri::generate_context!())
-        .expect("error while running AAIL");
+        .expect("error while running Quorum");
 }

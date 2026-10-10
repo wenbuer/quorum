@@ -48,7 +48,7 @@
         <rect x="352" y="464" width="248" height="64" rx="32" fill="#23c3d8" />
       </svg>
     </span>
-    <span class="brand">AAIL</span>
+    <span class="brand">智群</span>
   </header>
 
   <Composer domain={tab} {onopen} {onswitch} />
