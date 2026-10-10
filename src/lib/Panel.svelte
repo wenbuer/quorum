@@ -7,12 +7,13 @@
   import Projects from "./Projects.svelte";
   import Roles from "./Roles.svelte";
   import Settings from "./Settings.svelte";
-  import type { Domain, Route } from "./store.svelte";
+  import { clock, keyOf, plans, todayKey, type Domain, type Route } from "./store.svelte";
 
   let {
     route,
     tab,
     canBack,
+    active,
     onopen,
     onswitch,
     back,
@@ -20,10 +21,38 @@
     route: Route;
     tab: Domain;
     canBack: boolean;
+    /// False while the window is showing the capsule: the panel stays mounted so a
+    /// half-written line survives being put away, but it must not steal focus.
+    active: boolean;
     onopen: (route: Route) => void;
     onswitch: (tab: Domain) => void;
     back: () => void;
   } = $props();
+
+  // The status line reports what is actually scheduled, and nothing here fires by itself
+  // yet. The minute-ish tick is so "next up" rolls over on its own instead of going stale.
+  let tick = $state(Date.now());
+  $effect(() => {
+    const id = setInterval(() => (tick = Date.now()), 30000);
+    return () => clearInterval(id);
+  });
+
+  const pending = $derived(plans.filter((p) => !p.done));
+
+  const next = $derived.by(() => {
+    const now = new Date(tick);
+    const today = keyOf(now);
+    const minutes = now.getHours() * 60 + now.getMinutes();
+    return [...pending]
+      .filter((p) => p.day > today || (p.day === today && p.start * 60 > minutes))
+      .sort((a, b) => a.day.localeCompare(b.day) || a.start - b.start)[0];
+  });
+
+  const nextLabel = $derived.by(() => {
+    if (!next) return pending.length > 0 ? "今天没有别的安排了" : "还没有安排";
+    const day = next.day === todayKey ? "今天" : next.day.slice(5).replace("-", "/");
+    return `下一项 · ${day} ${clock(next.start)} ${next.title}`;
+  });
 
   const tabs: { id: Domain; label: string; root: Route }[] = [
     { id: "plan", label: "计划", root: { name: "planner" } },
@@ -39,7 +68,7 @@
     <span class="brand">智群</span>
   </header>
 
-  <Composer domain={tab} {onopen} {onswitch} />
+  <Composer domain={tab} {active} {onopen} {onswitch} />
 
   <header class="bar" data-tauri-drag-region>
     <div class="nav">
@@ -90,9 +119,9 @@
 
   <footer class="status">
     <span class="dot" aria-hidden="true"></span>
-    <span>下次触发 · 12:04</span>
+    <span class="clip">{nextLabel}</span>
     <span class="divider"></span>
-    <span>权限 · 2 项待授权</span>
+    <span class="num">待执行 {pending.length} 项</span>
   </footer>
 </div>
 
@@ -214,5 +243,19 @@
     height: 6px;
     border-radius: 50%;
     background: var(--green);
+    flex: none;
+  }
+
+  /* A long plan title must not push the count off the end of a 760px panel. */
+  .clip {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .status .num {
+    flex: none;
   }
 </style>

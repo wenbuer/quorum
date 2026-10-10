@@ -1,5 +1,6 @@
 <script lang="ts">
   import { untrack } from "svelte";
+  import ConfirmButton from "./ConfirmButton.svelte";
   import Folder from "./Folder.svelte";
   import { addProject, projects, removeProject, ui, updateProject } from "./store.svelte";
 
@@ -89,15 +90,13 @@
 
   <div class="foot">
     {#if existing}
-      <button
-        class="btn danger"
-        onclick={() => {
+      <ConfirmButton
+        label="删除项目"
+        onconfirm={() => {
           removeProject(existing.id);
           ondone();
         }}
-      >
-        删除项目
-      </button>
+      />
     {/if}
     <span class="grow"></span>
     <button class="btn" onclick={ondone}>取消</button>
@@ -278,12 +277,4 @@
     cursor: default;
   }
 
-  .btn.danger {
-    border-color: rgba(240, 74, 74, 0.35);
-    color: var(--red);
-  }
-
-  .btn.danger:hover {
-    background: var(--red-dim);
-  }
 </style>

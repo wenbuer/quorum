@@ -1,6 +1,17 @@
 <script lang="ts">
   import { slide } from "svelte/transition";
-  import { clock, keyOf, parseKey, plans, removePlan, todayKey, toggleDone, view, WEEKDAYS } from "./store.svelte";
+  import {
+    clock,
+    keyOf,
+    parseKey,
+    plans,
+    removePlan,
+    todayKey,
+    toggleDone,
+    view,
+    WEEKDAYS,
+    type Plan,
+  } from "./store.svelte";
 
   let { onopen, oncreate }: { onopen: (id: string) => void; oncreate: () => void } = $props();
 
@@ -75,21 +86,76 @@
   const open = $derived(todays.filter((p) => !p.done));
   const done = $derived(todays.filter((p) => p.done));
 
+  // "即将到来" answers "what is coming up" without clicking a calendar day at a time.
+  let scope = $state<"day" | "upcoming">("day");
+
+  const upcoming = $derived(
+    plans.filter((p) => !p.done).sort((a, b) => a.day.localeCompare(b.day) || a.start - b.start),
+  );
+
+  function dayLabel(key: string) {
+    if (key === todayKey) return "今天";
+    const date = parseKey(key);
+    return `${date.getMonth() + 1} 月 ${date.getDate()} 日 ${WEEKDAYS[(date.getDay() + 6) % 7]}`;
+  }
+
+  const groups = $derived.by(() => {
+    if (scope === "day") {
+      return [
+        { key: "待执行", items: open },
+        { key: "已完成", items: done },
+      ];
+    }
+    const byDay = new Map<string, Plan[]>();
+    for (const plan of upcoming) byDay.set(plan.day, [...(byDay.get(plan.day) ?? []), plan]);
+    return [...byDay.entries()].map(([day, items]) => ({ key: dayLabel(day), items }));
+  });
+
+  // Deleting takes a second click, and the arm expires on its own so a stray click never
+  // leaves a row one keystroke from gone.
+  let armed = $state<string | null>(null);
+  let armTimer: ReturnType<typeof setTimeout> | undefined;
+
+  function armDelete(id: string) {
+    clearTimeout(armTimer);
+    if (armed === id) {
+      armed = null;
+      removePlan(id);
+      return;
+    }
+    armed = id;
+    armTimer = setTimeout(() => (armed = null), 4000);
+  }
+
+  $effect(() => () => clearTimeout(armTimer));
+
 </script>
 
 <section class="planner">
   <div class="head">
-    <button class="twist" class:closed={!calOpen} onclick={() => (calOpen = !calOpen)}>
-      <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8">
-        <path d="M4 6.5L8 10.5l4-4" stroke-linecap="round" stroke-linejoin="round" />
-      </svg>
-      {calOpen ? "收起日历" : "展开完整日历"}
-    </button>
-    <span class="strong">{selLabel}</span>
-    <span class="count num">{todays.length} 项</span>
-    <span class="sep"></span>
-    <span class="week-num num">本周 {weekCount} 项</span>
+    {#if scope === "day"}
+      <button class="twist" class:closed={!calOpen} onclick={() => (calOpen = !calOpen)}>
+        <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M4 6.5L8 10.5l4-4" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        {calOpen ? "收起日历" : "展开完整日历"}
+      </button>
+      <span class="strong">{selLabel}</span>
+      <span class="count num">{todays.length} 项</span>
+      <span class="sep"></span>
+      <span class="week-num num">本周 {weekCount} 项</span>
+    {:else}
+      <span class="strong">即将到来</span>
+      <span class="count num">{upcoming.length} 项待执行</span>
+    {/if}
     <span class="grow"></span>
+    <button
+      class="scope"
+      class:on={scope === "upcoming"}
+      onclick={() => (scope = scope === "day" ? "upcoming" : "day")}
+    >
+      {scope === "day" ? "即将到来" : "回到当天"}
+    </button>
     <button class="new" onclick={oncreate}>
       <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.7">
         <path d="M8 3.6v8.8M3.6 8h8.8" stroke-linecap="round" />
@@ -98,7 +164,7 @@
     </button>
   </div>
 
-  {#if calOpen}
+  {#if scope === "day" && calOpen}
     <div class="cbar" transition:slide={{ duration: 180 }}>
       <button class="prev" onclick={() => shiftMonth(-1)} aria-label="上个月">
           <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8">
@@ -116,11 +182,12 @@
     </div>
   {/if}
 
-  <div class="wd">
-    {#each WEEKDAYS as name (name)}<span>{name}</span>{/each}
-  </div>
+  {#if scope === "day"}
+    <div class="wd">
+      {#each WEEKDAYS as name (name)}<span>{name}</span>{/each}
+    </div>
 
-  <div class="cgrid">
+    <div class="cgrid">
         {#each cells as cell (cell.key)}
           <button
             class="cell"
@@ -135,10 +202,23 @@
             </span>
           </button>
     {/each}
-  </div>
+    </div>
+  {/if}
 
   <div class="list">
-    {#each [{ key: "待执行", items: open }, { key: "已完成", items: done }] as group (group.key)}
+    {#if scope === "day" && todays.length === 0}
+      <div class="blank">
+        <p class="b1">{plans.length === 0 ? "还没有任何计划" : "这一天没有安排"}</p>
+        <p class="b2">在上面输入框写一句，比如「写周报 9:30」，回车就能建；或者点右上角「新建计划」。</p>
+        <button class="new" onclick={oncreate}>新建一条计划</button>
+      </div>
+    {:else if scope === "upcoming" && upcoming.length === 0}
+      <div class="blank">
+        <p class="b1">没有待执行的计划</p>
+        <p class="b2">都办完了，或者还没开始写。</p>
+      </div>
+    {:else}
+      {#each groups as group (group.key)}
       <p class="group">{group.key} · {group.items.length}</p>
       {#each group.items as plan (plan.id)}
         <div class="line">
@@ -153,15 +233,27 @@
           <button class="title" onclick={() => onopen(plan.id)}>{plan.title}</button>
           <span class="who">{plan.role}</span>
           <span class="lvl {plan.level.toLowerCase()} num">{plan.level}</span>
-          <button class="del" onclick={() => removePlan(plan.id)} aria-label="删除">
-            <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.7">
-              <path d="M4.5 4.5l7 7M11.5 4.5l-7 7" stroke-linecap="round" />
-            </svg>
+          <button
+            class="del"
+            class:armed={armed === plan.id}
+            onclick={() => armDelete(plan.id)}
+            aria-label={armed === plan.id ? "再点一次确认删除" : "删除"}
+          >
+            {#if armed === plan.id}
+              <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3.5 8.4l3 3 6-6.6" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            {:else}
+              <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.7">
+                <path d="M4.5 4.5l7 7M11.5 4.5l-7 7" stroke-linecap="round" />
+              </svg>
+            {/if}
           </button>
         </div>
       {/each}
-      {#if group.items.length === 0}<p class="empty">暂无</p>{/if}
-    {/each}
+        {#if group.items.length === 0}<p class="empty">暂无</p>{/if}
+      {/each}
+    {/if}
   </div>
 </section>
 
@@ -504,5 +596,61 @@
   .del:hover {
     background: var(--red-dim);
     color: var(--red);
+  }
+
+  /* An armed row says so even after the pointer leaves it. */
+  .del.armed {
+    opacity: 1;
+    background: var(--red-dim);
+    color: var(--red);
+  }
+
+  .scope {
+    height: 24px;
+    padding: 0 10px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--r-tag);
+    background: var(--bg);
+    color: var(--text-2);
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+  }
+
+  .scope:hover {
+    border-color: var(--brand);
+    color: var(--brand);
+  }
+
+  .scope.on {
+    border-color: transparent;
+    background: var(--brand-dim);
+    color: var(--brand);
+    font-weight: 600;
+  }
+
+  .blank {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 34px 24px;
+    text-align: center;
+  }
+
+  .b1 {
+    margin: 0;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text-2);
+  }
+
+  /* First run has to say what the box above is for; two "暂无" do not. */
+  .b2 {
+    margin: 0;
+    max-width: 380px;
+    font-size: 11.5px;
+    line-height: 1.7;
+    color: var(--text-3);
   }
 </style>

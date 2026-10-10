@@ -1,5 +1,6 @@
 <script lang="ts">
   import { untrack } from "svelte";
+  import ConfirmButton from "./ConfirmButton.svelte";
   import {
     addPlan,
     blankPlan,
@@ -35,15 +36,18 @@
     if (seeded) ui.planDraft = null;
   });
 
-  const levels: { id: Level; label: string; hint: string }[] = [
-    { id: "L1", label: "静默", hint: "只在贴边条上显示" },
-    { id: "L2", label: "系统通知", hint: "进 Windows 通知中心" },
-    { id: "L3", label: "强提醒", hint: "停在最前面，等你回应" },
+  // Greyed out is the honest state for these: a plan does not fire on a schedule yet (M1),
+  // and there is no notification channel yet (M2). Offering them as live switches would make
+  // the app promise something it cannot do.
+  const levels: { id: Level; label: string; hint: string; ready: boolean }[] = [
+    { id: "L1", label: "静默", hint: "只在贴边胶囊和日历里出现", ready: true },
+    { id: "L2", label: "系统通知", hint: "进 Windows 通知中心 · 还没接", ready: false },
+    { id: "L3", label: "强提醒", hint: "停在最前面等你回应 · 还没接", ready: false },
   ];
 
-  const repeats: { id: Repeat; label: string }[] = [
-    { id: "once", label: "一次" },
-    { id: "daily", label: "每天" },
+  const repeats: { id: Repeat; label: string; ready: boolean }[] = [
+    { id: "once", label: "一次", ready: true },
+    { id: "daily", label: "每天", ready: false },
   ];
 
   /// Hours are decimals in the store (9.5) and "09:30" in a time input.
@@ -118,7 +122,13 @@
       <span class="lb">触发</span>
       <div class="chips">
         {#each repeats as repeat (repeat.id)}
-          <button class="chip" class:on={draft.repeat === repeat.id} onclick={() => draft && (draft.repeat = repeat.id)}>
+          <button
+            class="chip"
+            class:on={draft.repeat === repeat.id}
+            disabled={!repeat.ready}
+            title={repeat.ready ? undefined : "重复要等调度器落地（M1）"}
+            onclick={() => draft && (draft.repeat = repeat.id)}
+          >
             {repeat.label}
           </button>
         {/each}
@@ -132,6 +142,7 @@
           <button
             class="chip"
             class:on={draft.level === level.id}
+            disabled={!level.ready}
             title={level.hint}
             onclick={() => draft && (draft.level = level.id)}
           >
@@ -150,20 +161,20 @@
       </select>
     </div>
 
+    <p class="note">「每天」和两种提醒还没接上，所以先灰着：现在建的计划会出现在胶囊和日历里，但不会自己弹出来。</p>
+
     <div class="actions">
       {#if existing}
         <button class="btn" onclick={() => toggleDone(existing.id)}>
           {existing.done ? "标记为待执行" : "标记为已完成"}
         </button>
-        <button
-          class="btn danger"
-          onclick={() => {
+        <ConfirmButton
+          label="删除计划"
+          onconfirm={() => {
             removePlan(existing.id);
             onback();
           }}
-        >
-          删除计划
-        </button>
+        />
       {:else}
         <button class="btn" onclick={onback}>取消</button>
         <button class="btn primary" onclick={create}>创建计划</button>
@@ -273,8 +284,13 @@
     cursor: pointer;
   }
 
-  .chip:hover {
+  .chip:hover:not(:disabled) {
     background: var(--hover);
+  }
+
+  .chip:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
   }
 
   .chip.on {
@@ -282,6 +298,13 @@
     background: var(--brand-dim);
     color: var(--brand);
     font-weight: 600;
+  }
+
+  .note {
+    margin: 2px 0 0;
+    font-size: 10.5px;
+    line-height: 1.6;
+    color: var(--text-3);
   }
 
   .actions {
@@ -317,15 +340,6 @@
   .btn.primary:hover {
     background: var(--brand);
     filter: brightness(1.06);
-  }
-
-  .btn.danger {
-    border-color: rgba(240, 74, 74, 0.35);
-    color: var(--red);
-  }
-
-  .btn.danger:hover {
-    background: var(--red-dim);
   }
 
   .missing {

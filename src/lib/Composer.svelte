@@ -15,9 +15,17 @@
 
   let {
     domain,
+    active,
     onopen,
     onswitch,
-  }: { domain: Domain; onopen: (route: Route) => void; onswitch: (tab: Domain) => void } = $props();
+  }: {
+    domain: Domain;
+    /// False while the capsule is on screen: the panel is only hidden, so the box must not
+    /// grab focus behind the capsule's back.
+    active: boolean;
+    onopen: (route: Route) => void;
+    onswitch: (tab: Domain) => void;
+  } = $props();
 
   const MAX_LEN = 200;
 
@@ -48,7 +56,7 @@
   let text = $state("");
   let chips = $state<Chip[]>([]);
   let stage = $state<null | "role" | "plan">(null);
-  let active = $state(0);
+  let hot = $state(0);
   let closed = $state(false);
   let pending = $state<{ id: string; params: string[]; filled: string[] } | null>(null);
   let draft = $state<
@@ -59,6 +67,7 @@
   // The panel is summoned to be typed into; landing on a form that ignores the keyboard
   // makes the hotkey pointless.
   $effect(() => {
+    if (!active) return;
     const id = setTimeout(() => inputEl?.focus(), 80);
     return () => clearTimeout(id);
   });
@@ -79,9 +88,9 @@
 
   const placeholder = $derived.by(() => {
     if (pending) return "填写" + pending.params[pending.filled.length];
-    if (domain === "role") return "输入 / 新建角色，或 /编辑角色";
-    if (domain === "project") return "输入 / 新建项目，或 /编辑项目";
-    if (domain === "settings") return "输入 / 看命令";
+    if (domain === "role") return "输入角色名就能新建，或输入 / 选命令";
+    if (domain === "project") return "输入项目名就能新建，或输入 / 选命令";
+    if (domain === "settings") return "这一页没有命令，直接改下面的开关";
     if (!project) return "写下计划，或输入 @ 选项目、/ 选命令";
     if (!roleChip) return "输入 / 交给角色 或 /添加路径";
     if (!actionChip) return "输入 / 添加路径，或直接执行";
@@ -119,6 +128,23 @@
   function add(kind: Chip["kind"], label: string) {
     chips = [...chips.filter((c) => c.kind !== kind), { kind, label }];
   }
+
+  /// The plus belongs to the tab you are on, so one control covers all three list domains
+  /// instead of each of them needing its own command.
+  function createHere() {
+    if (domain === "role") ui.drawer = { kind: "role" };
+    else if (domain === "project") {
+      ui.projectDraft = { name: "", path: "" };
+      onopen({ name: "project-new" });
+    } else {
+      ui.planDraft = null;
+      onopen({ name: "plan-new" });
+    }
+  }
+
+  const leadLabel = $derived(
+    domain === "role" ? "新建角色" : domain === "project" ? "新建项目" : "新建计划",
+  );
 
   function run(id: string) {
     const def = [...commands, ...projectCommands].find((c) => c.id === id);
@@ -269,8 +295,13 @@
     return [];
   });
 
+  // Settings has nothing to submit to, so the box stays inert there rather than pretending.
   const canSubmit = $derived(
-    pending ? true : domain === "plan" && (text.trim().length > 0 || chips.length > 0),
+    pending
+      ? true
+      : domain === "settings"
+        ? false
+        : text.trim().length > 0 || chips.length > 0,
   );
 
   function readPlan(input: string) {
@@ -303,7 +334,21 @@
       return;
     }
     closed = true;
-    openDraft(text.trim());
+    const typed = text.trim();
+    // Plain text is the tab's own default action, so Enter is never a dead key: the plan tab
+    // writes a plan down, the other two open their create form with the name already in it.
+    if (chips.length === 0 && domain === "role") {
+      ui.drawer = { kind: "role", name: typed };
+      reset();
+      return;
+    }
+    if (chips.length === 0 && domain === "project") {
+      ui.projectDraft = { name: typed, path: "" };
+      onopen({ name: "project-new" });
+      reset();
+      return;
+    }
+    if (domain === "plan") openDraft(typed);
   }
 
   /// What was typed, shaped for the create form's one-shot seed. Only what was actually
@@ -391,17 +436,17 @@
     if (offers.length > 0) {
       if (event.key === "ArrowDown") {
         event.preventDefault();
-        active = (active + 1) % offers.length;
+        hot = (hot + 1) % offers.length;
         return;
       }
       if (event.key === "ArrowUp") {
         event.preventDefault();
-        active = (active - 1 + offers.length) % offers.length;
+        hot = (hot - 1 + offers.length) % offers.length;
         return;
       }
       if (event.key === "Enter") {
         event.preventDefault();
-        offers[active]?.run();
+        offers[hot]?.run();
         return;
       }
     }
@@ -411,16 +456,18 @@
 
 <div class="composer">
   <div class="row">
-    <button
-      class="lead"
-      aria-label="新建计划"
-      onmousedown={(e) => e.preventDefault()}
-      onclick={() => run("/新建计划")}
-    >
-      <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5">
-        <path d="M8 3.2v9.6M3.2 8h9.6" stroke-linecap="round" />
-      </svg>
-    </button>
+    {#if domain !== "settings"}
+      <button
+        class="lead"
+        aria-label={leadLabel}
+        onmousedown={(e) => e.preventDefault()}
+        onclick={createHere}
+      >
+        <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M8 3.2v9.6M3.2 8h9.6" stroke-linecap="round" />
+        </svg>
+      </button>
+    {/if}
 
     {#if pending}
       <span class="cmd">{pending.id}</span>
@@ -454,13 +501,13 @@
       maxlength={MAX_LEN}
       spellcheck="false"
       {placeholder}
-      oninput={() => { closed = false; active = 0; }}
+      oninput={() => { closed = false; hot = 0; }}
       onkeydown={onKeydown}
       onfocus={() => (closed = false)}
       onblur={() => (closed = true)}
     />
     <button class="send" onclick={submit} disabled={!canSubmit}>
-      {pending || chips.length > 0 ? "执行" : "解析"}
+      {pending || chips.length > 0 ? "执行" : domain === "plan" ? "解析" : "新建"}
     </button>
   </div>
 
@@ -470,10 +517,10 @@
         <li>
           <button
             class="offer"
-            class:active={i === active}
+            class:active={i === hot}
             onmousedown={(e) => e.preventDefault()}
             onclick={() => offer.run()}
-            onmouseenter={() => (active = i)}
+            onmouseenter={() => (hot = i)}
           >
             <span class="oid">{offer.label ?? offer.id}</span>
             <span class="onote">{offer.note}</span>

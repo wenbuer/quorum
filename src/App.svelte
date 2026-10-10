@@ -227,16 +227,19 @@
     onmouseleave={onLeave}
     role="presentation"
   >
-    {#if mode === "panel"}
+    <div class="pane" class:away={mode !== "panel"}>
       <Panel
         {route}
         {tab}
         {canBack}
+        active={mode === "panel"}
         onopen={open}
         onswitch={(next) => (tab = next)}
         {back}
       />
-    {:else}
+    </div>
+
+    {#if mode !== "panel"}
       <Capsule
         edge={mode === "edge"}
         onopen={(next) => {
@@ -252,6 +255,19 @@
   .root {
     height: 100%;
     display: flex;
+  }
+
+  /* Hidden, not unmounted: putting the window away must not throw away a half-written
+     line in the composer, and losing focus is how the panel gets put away. */
+  .pane {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .pane.away {
+    display: none;
   }
 
   /* Floating: a real capsule -- both ends round, clear of any edge.

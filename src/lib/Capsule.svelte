@@ -144,7 +144,9 @@
           <span class="lvl {plan.level.toLowerCase()} num">{plan.level}</span>
         </div>
       {/each}
-      {#if today.length === 0}<p class="empty">今天还没有安排</p>{/if}
+      {#if today.length === 0}
+        <button class="empty" onclick={() => onopen()}>点这里打开面板记一条</button>
+      {/if}
     </div>
   </div>
 {/if}
@@ -363,9 +365,21 @@
   .lvl.l3 { color: var(--orange); background: var(--orange-dim); }
 
   .empty {
-    margin: 16px 0 0;
-    text-align: center;
+    width: 100%;
+    margin: 14px 0 0;
+    padding: 6px 8px;
+    border: 0;
+    border-radius: var(--r-btn);
+    background: none;
+    font: inherit;
     font-size: 11px;
     color: var(--text-4);
+    text-align: center;
+    cursor: pointer;
+  }
+
+  .empty:hover {
+    background: var(--hover);
+    color: var(--text-2);
   }
 </style>
