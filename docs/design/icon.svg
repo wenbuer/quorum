@@ -1,35 +1,38 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <defs>
-    <linearGradient id="g1" x1="0" y1="1" x2="1" y2="0">
-      <stop offset="0" stop-color="#3fd2ff"/><stop offset="0.45" stop-color="#9b7dff"/><stop offset="1" stop-color="#ff6fc8"/>
-    </linearGradient>
-    <linearGradient id="g2" x1="0" y1="1" x2="1" y2="0">
-      <stop offset="0" stop-color="#5ff0b8"/><stop offset="0.45" stop-color="#49c4ff"/><stop offset="1" stop-color="#b28cff"/>
-    </linearGradient>
-    <linearGradient id="g3" x1="0" y1="1" x2="1" y2="0">
-      <stop offset="0" stop-color="#ffd166"/><stop offset="0.45" stop-color="#ff8fc8"/><stop offset="1" stop-color="#7fa8ff"/>
-    </linearGradient>
-    <radialGradient id="bloom1" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#ff8fd8" stop-opacity="0.85"/><stop offset="1" stop-color="#ff8fd8" stop-opacity="0"/></radialGradient>
-    <radialGradient id="bloom2" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#5fd8ff" stop-opacity="0.85"/><stop offset="1" stop-color="#5fd8ff" stop-opacity="0"/></radialGradient>
-    <radialGradient id="bloom3" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#a98cff" stop-opacity="0.8"/><stop offset="1" stop-color="#a98cff" stop-opacity="0"/></radialGradient>
+    <linearGradient id="b0" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#b6f4ff"/><stop offset="1" stop-color="#6fd8ff"/></linearGradient>
+    <linearGradient id="b1" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#6fd8ff"/><stop offset="1" stop-color="#7f9dff"/></linearGradient>
+    <linearGradient id="b2" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#9b7dff"/><stop offset="1" stop-color="#c0a0ff"/></linearGradient>
+    <linearGradient id="b3" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#ff7ad0"/><stop offset="1" stop-color="#ff9ee0"/></linearGradient>
+    <linearGradient id="b4" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#ff9f8f"/><stop offset="1" stop-color="#ffc39e"/></linearGradient>
+    <linearGradient id="b5" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#8ff0cc"/><stop offset="1" stop-color="#5fe6b4"/></linearGradient>
+    <radialGradient id="c1" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#9ff0ff" stop-opacity="0.9"/><stop offset="1" stop-color="#9ff0ff" stop-opacity="0"/></radialGradient>
+    <radialGradient id="c2" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#ff8fd8" stop-opacity="0.75"/><stop offset="1" stop-color="#ff8fd8" stop-opacity="0"/></radialGradient>
+    <radialGradient id="c3" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#a98cff" stop-opacity="0.8"/><stop offset="1" stop-color="#a98cff" stop-opacity="0"/></radialGradient>
     <filter id="washSoft" x="-30%" y="-30%" width="160%" height="160%">
       <feTurbulence type="fractalNoise" baseFrequency="0.0055" numOctaves="2" seed="9" result="n"/>
       <feDisplacementMap in="SourceGraphic" in2="n" scale="15" xChannelSelector="R" yChannelSelector="G" result="d"/>
-      <feGaussianBlur in="d" stdDeviation="3.5"/>
+      <feGaussianBlur in="d" stdDeviation="3.2"/>
     </filter>
-    <filter id="washVeil" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="26"/></filter>
+    <filter id="washVeil" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="24"/></filter>
   </defs>
   <g filter="url(#washVeil)" opacity="0.4">
-    <path d="M499.7 394.6 C433.3 664.9 664.1 730.9 854.6 726.1 C704.1 645.3 591.2 510.1 499.7 394.6 Z" fill="url(#g1)"/>
-    <path d="M619.8 560 C418.9 367.4 246.4 534.3 155.3 701.7 C300.5 611.7 474.1 581.6 619.8 560 Z" fill="url(#g2)"/>
-    <path d="M416.5 581.4 C683.8 503.7 625.5 270.8 526.1 108.2 C531.4 279 470.7 444.4 416.5 581.4 Z" fill="url(#g3)"/>
+    <path d="M618.5 477.4 C469.9 626.1 589.1 773.9 711 856.7 C653 734.2 633 594.4 618.5 477.4 Z" fill="url(#b0)"/>
+    <path d="M595.2 586.9 C392.1 532.6 323.8 709.7 313 856.7 C390.1 745.2 501.1 658 595.2 586.9 Z" fill="url(#b1)"/>
+    <path d="M488.7 621.6 C434.2 418.5 246.6 447.9 114 512 C249.1 523 380.1 575.6 488.7 621.6 Z" fill="url(#b2)"/>
+    <path d="M405.5 546.6 C554.1 397.9 434.9 250.1 313 167.3 C371 289.8 391 429.6 405.5 546.6 Z" fill="url(#b3)"/>
+    <path d="M428.8 437.1 C631.9 491.4 700.2 314.3 711 167.3 C633.9 278.8 522.9 366 428.8 437.1 Z" fill="url(#b4)"/>
+    <path d="M535.3 402.4 C589.8 605.5 777.4 576.1 910 512 C774.9 501 643.9 448.4 535.3 402.4 Z" fill="url(#b5)"/>
   </g>
   <g filter="url(#washSoft)" opacity="0.96">
-    <path d="M499.7 394.6 C433.3 664.9 664.1 730.9 854.6 726.1 C704.1 645.3 591.2 510.1 499.7 394.6 Z" fill="url(#g1)"/>
-    <path d="M619.8 560 C418.9 367.4 246.4 534.3 155.3 701.7 C300.5 611.7 474.1 581.6 619.8 560 Z" fill="url(#g2)"/>
-    <path d="M416.5 581.4 C683.8 503.7 625.5 270.8 526.1 108.2 C531.4 279 470.7 444.4 416.5 581.4 Z" fill="url(#g3)"/>
+    <path d="M618.5 477.4 C469.9 626.1 589.1 773.9 711 856.7 C653 734.2 633 594.4 618.5 477.4 Z" fill="url(#b0)"/>
+    <path d="M595.2 586.9 C392.1 532.6 323.8 709.7 313 856.7 C390.1 745.2 501.1 658 595.2 586.9 Z" fill="url(#b1)"/>
+    <path d="M488.7 621.6 C434.2 418.5 246.6 447.9 114 512 C249.1 523 380.1 575.6 488.7 621.6 Z" fill="url(#b2)"/>
+    <path d="M405.5 546.6 C554.1 397.9 434.9 250.1 313 167.3 C371 289.8 391 429.6 405.5 546.6 Z" fill="url(#b3)"/>
+    <path d="M428.8 437.1 C631.9 491.4 700.2 314.3 711 167.3 C633.9 278.8 522.9 366 428.8 437.1 Z" fill="url(#b4)"/>
+    <path d="M535.3 402.4 C589.8 605.5 777.4 576.1 910 512 C774.9 501 643.9 448.4 535.3 402.4 Z" fill="url(#b5)"/>
   </g>
-  <circle cx="512" cy="512" r="200" fill="url(#bloom2)" filter="url(#washVeil)" opacity="0.8"/>
-  <circle cx="468" cy="552" r="172" fill="url(#bloom1)" filter="url(#washVeil)" opacity="0.75"/>
-  <circle cx="562" cy="466" r="164" fill="url(#bloom3)" filter="url(#washVeil)" opacity="0.7"/>
+  <circle cx="512" cy="512" r="196" fill="url(#c1)" filter="url(#washVeil)" opacity="0.85"/>
+  <circle cx="470" cy="550" r="168" fill="url(#c2)" filter="url(#washVeil)" opacity="0.7"/>
+  <circle cx="558" cy="470" r="164" fill="url(#c3)" filter="url(#washVeil)" opacity="0.7"/>
 </svg>
