@@ -52,6 +52,13 @@ export function parseKey(key: string) {
 
 export const todayKey = keyOf(new Date());
 
+/// Plans keep time as a decimal hour (9.5); people read "09:30".
+export function clock(hour: number) {
+  const h = Math.floor(hour);
+  const m = Math.round((hour - h) * 60);
+  return String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0");
+}
+
 const on = (offset: number) => {
   const date = new Date();
   date.setDate(date.getDate() + offset);

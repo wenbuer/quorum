@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { plans, removePlan, toggleDone, type Level } from "./store.svelte";
+  import { clock, plans, removePlan, toggleDone, type Level } from "./store.svelte";
 
   let { id, onback }: { id: string; onback: () => void } = $props();
 
@@ -11,11 +11,6 @@
     { id: "L3", label: "强提醒", hint: "停在最前面，等你回应" },
   ];
 
-  function clock(hour: number) {
-    const h = Math.floor(hour);
-    const m = Math.round((hour - h) * 60);
-    return String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0");
-  }
 </script>
 
 {#if plan}

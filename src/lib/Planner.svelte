@@ -1,6 +1,6 @@
 <script lang="ts">
   import { slide } from "svelte/transition";
-  import { keyOf, parseKey, plans, removePlan, todayKey, toggleDone, view, WEEKDAYS } from "./store.svelte";
+  import { clock, keyOf, parseKey, plans, removePlan, todayKey, toggleDone, view, WEEKDAYS } from "./store.svelte";
 
   let { onopen }: { onopen: (id: string) => void } = $props();
 
@@ -59,11 +59,6 @@
   const open = $derived(todays.filter((p) => !p.done));
   const done = $derived(todays.filter((p) => p.done));
 
-  function clock(hour: number) {
-    const h = Math.floor(hour);
-    const m = Math.round((hour - h) * 60);
-    return String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0");
-  }
 </script>
 
 <section class="planner">

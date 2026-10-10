@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { addPlan, projects, roles, ui, view, type Domain, type Route } from "./store.svelte";
+  import { addPlan, clock, plans, projects, roles, todayKey, ui, view, type Domain, type Route } from "./store.svelte";
 
   let {
     domain,
@@ -13,13 +13,18 @@
 
   type CommandDef = { id: string; note: string; params: string[] };
 
+  /// A row shows `label` when the id is only a key -- plan ids (p-3) are not names.
+  type Offer = { id: string; note: string; label?: string; run: () => void };
+
   // First mode: no project chosen, so the general set applies -- creating roles included.
   const commands: CommandDef[] = [
+    { id: "/新建计划", note: "创建一条计划", params: ["内容"] },
+    { id: "/查看计划", note: "打开已有计划", params: [] },
     { id: "/新建角色", note: "创建一个角色", params: ["名称"] },
     { id: "/编辑角色", note: "修改已有角色", params: [] },
     { id: "/新建项目", note: "创建一个项目", params: ["名称", "路径"] },
     { id: "/编辑项目", note: "修改已有项目", params: [] },
-    { id: "/选角色", note: "选择执行的角色", params: [] },
+    { id: "/执行角色", note: "选定执行的角色", params: [] },
   ];
 
   // Second mode: a project is chosen, so the chain may only act on that project.
@@ -30,7 +35,7 @@
 
   let text = $state("");
   let chips = $state<Chip[]>([]);
-  let stage = $state<null | "role">(null);
+  let stage = $state<null | "role" | "plan">(null);
   let active = $state(0);
   let closed = $state(false);
   let pending = $state<{ id: string; params: string[]; filled: string[] } | null>(null);
@@ -82,7 +87,12 @@
   /// A command with argument slots collects them one chip at a time, then hands them to the
   /// page that owns the work.
   function finish(id: string, filled: string[]) {
-    if (id === "/新建角色") {
+    if (id === "/新建计划") {
+      // An empty slot drops you on the plan tab to type one; a filled one shows the card.
+      const body = (filled[0] ?? "").trim();
+      if (body) openDraft(body);
+      else onswitch("plan");
+    } else if (id === "/新建角色") {
       onswitch("role");
       ui.drawer = { kind: "role", name: filled[0] };
     } else if (id === "/新建项目") {
@@ -107,7 +117,14 @@
       inputEl?.focus();
       return;
     }
-    if (id === "/选角色" || id === "/交给角色") {
+    if (id === "/查看计划") {
+      stage = "plan";
+      text = "";
+      closed = false;
+      inputEl?.focus();
+      return;
+    }
+    if (id === "/执行角色" || id === "/交给角色") {
       stage = "role";
       text = "";
       closed = false;
@@ -145,9 +162,26 @@
     reset();
   }
 
-  const offers = $derived.by(() => {
+  const offers = $derived.by((): Offer[] => {
     if (closed) return [];
     const value = text.trimStart();
+
+    if (stage === "plan") {
+      return [...plans]
+        .sort((a, b) => a.day.localeCompare(b.day) || a.start - b.start)
+        .filter((p) => p.title.includes(value))
+        .map((p) => ({
+          id: p.id,
+          label: p.title,
+          note:
+            (p.day === todayKey ? "今天" : p.day.slice(5).replace("-", "/")) +
+            " " + clock(p.start) + (p.done ? " · 已完成" : ""),
+          run: () => {
+            onopen({ name: "plan", id: p.id });
+            reset();
+          },
+        }));
+    }
 
     if (stage === "role") {
       return roles
@@ -257,9 +291,13 @@
       return;
     }
     closed = true;
-    const base = readPlan(text.trim());
+    openDraft(text.trim());
+  }
+
+  /// The card is the confirmation step: nothing is written until the user accepts it.
+  function openDraft(body: string) {
     draft = {
-      ...base,
+      ...readPlan(body),
       role: roleChip?.label ?? "编排",
       project: project?.label ?? "",
       action: actionChip?.label ?? "",
@@ -284,6 +322,8 @@
     draft = null;
     text = "";
     chips = [];
+    // Created from another tab, the new plan would otherwise land where nobody is looking.
+    onswitch("plan");
     inputEl?.focus();
   }
 
@@ -403,7 +443,7 @@
             onclick={() => offer.run()}
             onmouseenter={() => (active = i)}
           >
-            <span class="oid">{offer.id}</span>
+            <span class="oid">{offer.label ?? offer.id}</span>
             <span class="onote">{offer.note}</span>
           </button>
         </li>
