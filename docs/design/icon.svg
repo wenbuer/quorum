@@ -1,11 +1,30 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0.28" y2="1">
-      <stop offset="0" stop-color="#5b93ff"/>
-      <stop offset="1" stop-color="#1f5be0"/>
+    <radialGradient id="bg" cx="0.5" cy="0.42" r="0.72">
+      <stop offset="0" stop-color="#2b5bd8"/>
+      <stop offset="0.55" stop-color="#152a72"/>
+      <stop offset="1" stop-color="#08123a"/>
+    </radialGradient>
+    <radialGradient id="core" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#f2ffff"/>
+      <stop offset="0.4" stop-color="#5fe4ff"/>
+      <stop offset="1" stop-color="#2b8cf6"/>
+    </radialGradient>
+    <radialGradient id="halo" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#6fe6ff" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#6fe6ff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8fe6ff"/>
+      <stop offset="0.5" stop-color="#4f8dff"/>
+      <stop offset="1" stop-color="#7b5cff"/>
     </linearGradient>
   </defs>
-  <rect width="1024" height="1024" rx="228" fill="url(#bg)"/>
-  <path d="M300 352h424c53 0 96 43 96 96v112c0 53-43 96-96 96H520l-108 108V656H300c-53 0-96-43-96-96V448c0-53 43-96 96-96z" fill="#ffffff"/>
-  <rect x="352" y="464" width="248" height="64" rx="32" fill="#23c3d8"/>
+  <circle cx="512" cy="512" r="512" fill="url(#bg)"/>
+  <circle cx="512" cy="512" r="494" fill="none" stroke="url(#rim)" stroke-width="28" opacity="0.9"/>
+  <circle cx="512" cy="512" r="180" fill="url(#halo)"/>
+  <circle cx="512" cy="512" r="330" fill="none" stroke="#5fe4ff" stroke-width="66" stroke-linecap="round" stroke-dasharray="512 690" transform="rotate(-150 512 512)"/>
+  <circle cx="512" cy="512" r="330" fill="none" stroke="#7da2ff" stroke-width="66" stroke-linecap="round" stroke-dasharray="512 690" transform="rotate(-30 512 512)"/>
+  <circle cx="512" cy="512" r="330" fill="none" stroke="#c9a6ff" stroke-width="66" stroke-linecap="round" stroke-dasharray="512 690" transform="rotate(90 512 512)"/>
+  <circle cx="512" cy="512" r="118" fill="url(#core)"/>
 </svg>
