@@ -1,55 +1,34 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <defs>
-    <radialGradient id="bg" cx="0.5" cy="0.42" r="0.72">
-      <stop offset="0" stop-color="#241a52"/>
-      <stop offset="0.55" stop-color="#120b33"/>
-      <stop offset="1" stop-color="#07061c"/>
+    <linearGradient id="holo" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8fe9ff"/><stop offset="0.22" stop-color="#c3b0ff"/>
+      <stop offset="0.45" stop-color="#ff9ede"/><stop offset="0.68" stop-color="#ffe6a8"/>
+      <stop offset="0.86" stop-color="#9ff2d2"/><stop offset="1" stop-color="#8fe9ff"/>
+    </linearGradient>
+    <linearGradient id="holo2" x1="1" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffd9f4"/><stop offset="0.3" stop-color="#a8e8ff"/>
+      <stop offset="0.6" stop-color="#d3c4ff"/><stop offset="0.85" stop-color="#b6f5e0"/>
+      <stop offset="1" stop-color="#ffe9b8"/>
+    </linearGradient>
+    <radialGradient id="pearl" cx="0.42" cy="0.38" r="0.68">
+      <stop offset="0" stop-color="#ffffff"/><stop offset="0.55" stop-color="#ffffff" stop-opacity="0.92"/>
+      <stop offset="1" stop-color="#dcd0ff" stop-opacity="0.75"/>
     </radialGradient>
-    <radialGradient id="core" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0" stop-color="#ffffff"/>
-      <stop offset="0.45" stop-color="#c9f6ff"/>
-      <stop offset="1" stop-color="#5fe4ff"/>
-    </radialGradient>
-    <radialGradient id="bloom" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0" stop-color="#ffffff" stop-opacity="0.55"/>
-      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
-    </radialGradient>
-    <radialGradient id="mag" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0" stop-color="#ff3df0" stop-opacity="0.85"/>
-      <stop offset="1" stop-color="#ff3df0" stop-opacity="0"/>
-    </radialGradient>
-    <radialGradient id="cyn" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0" stop-color="#25f5ff" stop-opacity="0.8"/>
-      <stop offset="1" stop-color="#25f5ff" stop-opacity="0"/>
-    </radialGradient>
+    <filter id="ink" x="-25%" y="-25%" width="150%" height="150%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.013" numOctaves="3" seed="11" result="n"/>
+      <feDisplacementMap in="SourceGraphic" in2="n" scale="52" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+    <filter id="wash" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="26"/></filter>
   </defs>
-  <circle cx="512" cy="512" r="512" fill="url(#bg)"/>
-  <circle cx="392" cy="392" r="330" fill="url(#mag)"/>
-  <circle cx="640" cy="628" r="330" fill="url(#cyn)"/>
-  <circle cx="512" cy="512" r="330" fill="none" stroke="#fa2e2e" stroke-width="72" stroke-dasharray="80 1993" transform="rotate(0 512 512)"/>
-  <circle cx="512" cy="512" r="330" fill="none" stroke="#fa612e" stroke-width="72" stroke-dasharray="80 1993" transform="rotate(15 512 512)"/>
-  <circle cx="512" cy="512" r="330" fill="none" stroke="#fa942e" stroke-width="72" stroke-dasharray="80 1993" transform="rotate(30 512 512)"/>
-  <circle cx="512" cy="512" r="330" fill="none" stroke="#fac72e" stroke-width="72" stroke-dasharray="80 1993" transform="rotate(45 512 512)"/>
-  <circle cx="512" cy="512" r="330" fill="none" stroke="#fafa2e" stroke-width="72" stroke-dasharray="80 1993" transform="rotate(60 512 512)"/>
-  <circle cx="512" cy="512" r="330" fill="none" stroke="#c7fa2e" stroke-width="72" stroke-dasharray="80 1993" transform="rotate(75 512 512)"/>
-  <circle cx="512" cy="512" r="330" fill="none" stroke="#94fa2e" stroke-width="72" stroke-dasharray="80 1993" transform="rotate(90 512 512)"/>
-  <circle cx="512" cy="512" r="330" fill="none" stroke="#61fa2e" stroke-width="72" stroke-dasharray="80 1993" transform="rotate(105 512 512)"/>
-  <circle cx="512" cy="512" r="330" fill="none" stroke="#2efa2e" stroke-width="72" stroke-dasharray="80 1993" transform="rotate(120 512 512)"/>
-  <circle cx="512" cy="512" r="330" fill="none" stroke="#2efa61" stroke-width="72" stroke-dasharray="80 1993" transform="rotate(135 512 512)"/>
-  <circle cx="512" cy="512" r="330" fill="none" stroke="#2efa94" stroke-width="72" stroke-dasharray="80 1993" transform="rotate(150 512 512)"/>
-  <circle cx="512" cy="512" r="330" fill="none" stroke="#2efac7" stroke-width="72" stroke-dasharray="80 1993" transform="rotate(165 512 512)"/>
-  <circle cx="512" cy="512" r="330" fill="none" stroke="#2efafa" stroke-width="72" stroke-dasharray="80 1993" transform="rotate(180 512 512)"/>
-  <circle cx="512" cy="512" r="330" fill="none" stroke="#2ec7fa" stroke-width="72" stroke-dasharray="80 1993" transform="rotate(195 512 512)"/>
-  <circle cx="512" cy="512" r="330" fill="none" stroke="#2e94fa" stroke-width="72" stroke-dasharray="80 1993" transform="rotate(210 512 512)"/>
-  <circle cx="512" cy="512" r="330" fill="none" stroke="#2e61fa" stroke-width="72" stroke-dasharray="80 1993" transform="rotate(225 512 512)"/>
-  <circle cx="512" cy="512" r="330" fill="none" stroke="#2e2efa" stroke-width="72" stroke-dasharray="80 1993" transform="rotate(240 512 512)"/>
-  <circle cx="512" cy="512" r="330" fill="none" stroke="#612efa" stroke-width="72" stroke-dasharray="80 1993" transform="rotate(255 512 512)"/>
-  <circle cx="512" cy="512" r="330" fill="none" stroke="#942efa" stroke-width="72" stroke-dasharray="80 1993" transform="rotate(270 512 512)"/>
-  <circle cx="512" cy="512" r="330" fill="none" stroke="#c72efa" stroke-width="72" stroke-dasharray="80 1993" transform="rotate(285 512 512)"/>
-  <circle cx="512" cy="512" r="330" fill="none" stroke="#fa2efa" stroke-width="72" stroke-dasharray="80 1993" transform="rotate(300 512 512)"/>
-  <circle cx="512" cy="512" r="330" fill="none" stroke="#fa2ec7" stroke-width="72" stroke-dasharray="80 1993" transform="rotate(315 512 512)"/>
-  <circle cx="512" cy="512" r="330" fill="none" stroke="#fa2e94" stroke-width="72" stroke-dasharray="80 1993" transform="rotate(330 512 512)"/>
-  <circle cx="512" cy="512" r="330" fill="none" stroke="#fa2e61" stroke-width="72" stroke-dasharray="80 1993" transform="rotate(345 512 512)"/>
-  <circle cx="512" cy="512" r="240" fill="url(#bloom)"/>
-  <circle cx="512" cy="512" r="120" fill="url(#core)"/>
+  <g filter="url(#wash)" opacity="0.55">
+    <circle cx="400" cy="380" r="190" fill="url(#holo)"/>
+    <circle cx="640" cy="410" r="180" fill="url(#holo2)"/>
+    <circle cx="520" cy="650" r="195" fill="url(#holo)"/>
+  </g>
+  <g filter="url(#ink)">
+    <circle cx="400" cy="380" r="168" fill="url(#holo)" opacity="0.9"/>
+    <circle cx="640" cy="410" r="158" fill="url(#holo2)" opacity="0.85"/>
+    <circle cx="520" cy="650" r="172" fill="url(#holo)" opacity="0.85"/>
+  </g>
+  <circle cx="520" cy="500" r="92" fill="url(#pearl)"/>
 </svg>
