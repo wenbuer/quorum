@@ -426,31 +426,48 @@ fn active_hotkey() -> String {
     ACTIVE_HOTKEY.lock().map(|held| held.clone()).unwrap_or_default()
 }
 
-// Settings live in one JSON file the frontend owns the shape of: the kernel only knows
-// where it is. SQLite arrives with the task model in M1; this is the pre-database version.
-fn settings_path(app: &AppHandle) -> Option<std::path::PathBuf> {
-    app.path()
-        .app_config_dir()
-        .ok()
-        .map(|dir| dir.join("settings.json"))
+// Everything kept on disk lives next to each other, one file per shape: the kernel knows
+// where, the frontend knows what. SQLite arrives with the task model in M1; this is the
+// pre-database version.
+fn config_file(app: &AppHandle, name: &str) -> Option<std::path::PathBuf> {
+    app.path().app_config_dir().ok().map(|dir| dir.join(name))
 }
 
-#[tauri::command]
-fn load_settings(app: AppHandle) -> serde_json::Value {
-    settings_path(&app)
-        .and_then(|path| std::fs::read_to_string(path).ok())
+fn read_json(path: Option<std::path::PathBuf>) -> serde_json::Value {
+    path.and_then(|file| std::fs::read_to_string(file).ok())
         .and_then(|raw| serde_json::from_str(&raw).ok())
         .unwrap_or_else(|| serde_json::json!({}))
 }
 
-#[tauri::command]
-fn save_settings(app: AppHandle, settings: serde_json::Value) -> Result<(), String> {
-    let path = settings_path(&app).ok_or("no config directory")?;
+fn write_json(path: Option<std::path::PathBuf>, value: &serde_json::Value) -> Result<(), String> {
+    let path = path.ok_or("no config directory")?;
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     }
-    let raw = serde_json::to_string_pretty(&settings).map_err(|e| e.to_string())?;
+    let raw = serde_json::to_string_pretty(value).map_err(|e| e.to_string())?;
     std::fs::write(path, raw).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn load_settings(app: AppHandle) -> serde_json::Value {
+    read_json(config_file(&app, "settings.json"))
+}
+
+#[tauri::command]
+fn save_settings(app: AppHandle, settings: serde_json::Value) -> Result<(), String> {
+    write_json(config_file(&app, "settings.json"), &settings)
+}
+
+/// Plans, roles and projects. Still one blob, rewritten whole -- the per-record store is
+/// M1's job, and until then this only has to survive a restart.
+#[tauri::command]
+fn load_data(app: AppHandle) -> serde_json::Value {
+    read_json(config_file(&app, "data.json"))
+}
+
+#[tauri::command]
+fn save_data(app: AppHandle, data: serde_json::Value) -> Result<(), String> {
+    write_json(config_file(&app, "data.json"), &data)
 }
 
 /// Rebind the global hotkey at runtime. RegisterHotKey is exclusive, so a shortcut someone
@@ -708,6 +725,8 @@ pub fn run() {
             set_autostart,
             load_settings,
             save_settings,
+            load_data,
+            save_data,
             set_hotkey
         ])
         .setup(|app| {
@@ -817,16 +836,11 @@ pub fn run() {
 
             // A shortcut the user picked wins over the chain; if the OS refuses it now
             // (something grabbed it since) fall back rather than starting with none.
-            let saved = settings_path(app.handle())
-                .and_then(|path| std::fs::read_to_string(path).ok())
-                .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok())
-                .and_then(|value| {
-                    value
-                        .get("hotkey")
-                        .and_then(|held| held.as_str())
-                        .filter(|spec| !spec.is_empty())
-                        .map(|spec| spec.to_string())
-                });
+            let saved = read_json(config_file(app.handle(), "settings.json"))
+                .get("hotkey")
+                .and_then(|held| held.as_str())
+                .filter(|spec| !spec.is_empty())
+                .map(|spec| spec.to_string());
 
             let active = saved
                 .and_then(|spec| {

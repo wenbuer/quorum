@@ -13,20 +13,16 @@
     route,
     tab,
     canBack,
-    canForward,
     onopen,
     onswitch,
     back,
-    forward,
   }: {
     route: Route;
     tab: Domain;
     canBack: boolean;
-    canForward: boolean;
     onopen: (route: Route) => void;
     onswitch: (tab: Domain) => void;
     back: () => void;
-    forward: () => void;
   } = $props();
 
   const tabs: { id: Domain; label: string; root: Route }[] = [
@@ -52,11 +48,6 @@
           <path d="M10 3.5L5.5 8l4.5 4.5" stroke-linecap="round" stroke-linejoin="round" />
         </svg>
       </button>
-      <button class="icon" disabled={!canForward} onclick={forward} aria-label="前进">
-        <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.7">
-          <path d="M6 3.5L10.5 8 6 12.5" stroke-linecap="round" stroke-linejoin="round" />
-        </svg>
-      </button>
     </div>
 
     <span class="divider"></span>
@@ -79,9 +70,11 @@
 
   <div class="stage">
     {#if route.name === "planner"}
-      <Planner onopen={(id) => onopen({ name: "plan", id })} />
+      <Planner onopen={(id) => onopen({ name: "plan", id })} oncreate={() => onopen({ name: "plan-new" })} />
     {:else if route.name === "plan"}
       <PlanDetail id={route.id} onback={back} />
+    {:else if route.name === "plan-new"}
+      <PlanDetail onback={back} />
     {:else if route.name === "roles"}
       <Roles />
     {:else if route.name === "projects"}

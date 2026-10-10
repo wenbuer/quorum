@@ -31,10 +31,22 @@ export type Route =
   | { name: "projects" }
   | { name: "project"; id: string }
   | { name: "project-new" }
+  | { name: "plan-new" }
   | { name: "settings" };
 
 let seq = 0;
 const nextId = (prefix: string) => prefix + "-" + ++seq;
+
+/// Ids restart at 1 every launch, so whatever came back from disk has to push the counter
+/// past itself first -- otherwise the next new plan is handed an id that is already taken.
+export function adoptIds(...groups: { id: string }[][]) {
+  for (const group of groups) {
+    for (const item of group) {
+      const n = Number(item.id.split("-").pop());
+      if (Number.isFinite(n) && n > seq) seq = n;
+    }
+  }
+}
 
 export const WEEKDAYS = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
 
@@ -58,12 +70,6 @@ export function clock(hour: number) {
   const m = Math.round((hour - h) * 60);
   return String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0");
 }
-
-const on = (offset: number) => {
-  const date = new Date();
-  date.setDate(date.getDate() + offset);
-  return keyOf(date);
-};
 
 export const view = $state({ day: todayKey });
 
@@ -111,6 +117,7 @@ export function domainOf(route: Route): Domain {
   switch (route.name) {
     case "planner":
     case "plan":
+    case "plan-new":
       return "plan";
     case "projects":
     case "project":
@@ -127,7 +134,9 @@ export function domainOf(route: Route): Domain {
 export const ui = $state<{
   drawer: null | { kind: "role"; id?: string; name?: string };
   projectDraft: null | { name: string; path: string };
-}>({ drawer: null, projectDraft: null });
+  /// Same one-shot trick as projectDraft: a command fills it, the create form reads it once.
+  planDraft: null | Partial<Omit<Plan, "id">>;
+}>({ drawer: null, projectDraft: null, planDraft: null });
 
 export function rootOf(domain: Domain): Route {
   switch (domain) {
@@ -163,36 +172,35 @@ export function grantsTemplate(): Grant[] {
 const withOn = (ids: string[]) =>
   grantsTemplate().map((g) => (ids.includes(g.id) ? { ...g, on: true } : g));
 
+/// These three are filled from data.json at launch and written back when they change; an
+/// empty list is a real state, not a missing one. 编排 stays built in because a plan written
+/// without picking a role is filed under that name.
 export const roles = $state<Role[]>([
   { id: "planner", name: "编排", grants: withOn(["calendar", "plans"]) },
-  { id: "sentinel", name: "哨兵", grants: withOn(["files"]) },
-  { id: "archivist", name: "归档", grants: withOn(["files", "plans"]) },
 ]);
 
-export const projects = $state<Project[]>([
-  { id: "self", name: "智群", note: "桌面助手本体", paths: ["G:\\Projects\\aail"] },
-  { id: "thesis", name: "毕业论文", note: "", paths: [] },
-  { id: "blog", name: "博客重构", note: "", paths: ["G:\\blog"] },
-]);
+export const projects = $state<Project[]>([]);
 
-// Demo data: spread today's plans over whatever is left of the day, so the capsule always
-// has something real to count down to instead of a hardcoded morning that has already gone.
-const hoursNow = new Date().getHours() + new Date().getMinutes() / 60;
-const room = Math.max(2, 22.5 - hoursNow);
-const at = (share: number) => Math.round((hoursNow + room * share) * 100) / 100;
-const soon = at(0.15);
-const mid = at(0.45);
-const late = at(0.8);
-const earlier = Math.max(0.3, Math.round((hoursNow - 1.6) * 100) / 100);
+export const plans = $state<Plan[]>([]);
 
-export const plans = $state<Plan[]>([
-  { id: nextId("p"), day: on(0), start: earlier, end: earlier + 0.6, title: "开盘前复盘", note: "", role: "编排", level: "L1", repeat: "daily", done: true },
-  { id: nextId("p"), day: on(0), start: soon, end: soon + 0.7, title: "API 方案评审", note: "过一遍接口草案", role: "编排", level: "L3", repeat: "once", done: false },
-  { id: nextId("p"), day: on(0), start: mid, end: mid + 0.9, title: "竞品拆解 · 复盘", note: "", role: "归档", level: "L2", repeat: "once", done: false },
-  { id: nextId("p"), day: on(0), start: late, end: late + 0.8, title: "周报提纲", note: "", role: "编排", level: "L1", repeat: "daily", done: false },
-  { id: nextId("p"), day: on(3), start: 10, end: 10.5, title: "季度对账", note: "", role: "归档", level: "L2", repeat: "once", done: false },
-  { id: nextId("p"), day: on(5), start: 14, end: 14.5, title: "供应商沟通", note: "", role: "哨兵", level: "L1", repeat: "once", done: false },
-]);
+/// A plan handed to the create form with nothing filled but the time: the next half hour if
+/// the day it lands on is today, otherwise a sober 09:00.
+export function blankPlan(day: string): Omit<Plan, "id"> {
+  const now = new Date();
+  const half = Math.ceil((now.getHours() + now.getMinutes() / 60) * 2) / 2;
+  const start = day === todayKey ? half : 9;
+  return {
+    day,
+    start,
+    end: start + 0.5,
+    title: "",
+    note: "",
+    role: roles[0]?.name ?? "编排",
+    level: "L1",
+    repeat: "once",
+    done: false,
+  };
+}
 
 export function addPlan(plan: Omit<Plan, "id">) {
   const created = { ...plan, id: nextId("p") };

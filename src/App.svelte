@@ -5,10 +5,23 @@
   import Capsule from "./lib/Capsule.svelte";
   import Panel from "./lib/Panel.svelte";
   import Popup from "./lib/Popup.svelte";
-  import { domainOf, sameRoute, settings, ui, type Domain, type Route } from "./lib/store.svelte";
+  import {
+    adoptIds,
+    domainOf,
+    plans,
+    projects,
+    roles,
+    sameRoute,
+    settings,
+    ui,
+    type Domain,
+    type Plan,
+    type Project,
+    type Role,
+    type Route,
+  } from "./lib/store.svelte";
 
   type Mode = "capsule" | "edge" | "panel";
-  type Hist = { stack: Route[]; cursor: number };
 
   // Both windows run this same bundle; Tauri tells them apart by window label.
   function currentLabel() {
@@ -29,22 +42,20 @@
   let mode = $state<Mode>(wantsPanel ? "panel" : flags.has("edge") ? "edge" : "capsule");
   let collapseTimer: ReturnType<typeof setTimeout> | undefined;
 
-  // Each tab keeps its own history, so back never crosses into the other tab and running
-  // the stack dry lands on that tab's own root.
+  // Each tab keeps its own trail, so back never crosses into the other tab and running the
+  // trail dry lands on that tab's own root.
   const initialTab: Domain = flags.has("roles") ? "role" : "plan";
   let tab = $state<Domain>(initialTab);
-  let hist = $state<Record<Domain, Hist>>({
-    plan: { stack: [{ name: "planner" }], cursor: 0 },
-    role: { stack: [{ name: "roles" }], cursor: 0 },
-    project: { stack: [{ name: "projects" }], cursor: 0 },
-    settings: { stack: [{ name: "settings" }], cursor: 0 },
+  let hist = $state<Record<Domain, Route[]>>({
+    plan: [{ name: "planner" }],
+    role: [{ name: "roles" }],
+    project: [{ name: "projects" }],
+    settings: [{ name: "settings" }],
   });
 
-  const stack = $derived(hist[tab].stack);
-  const cursor = $derived(hist[tab].cursor);
-  const route = $derived(stack[cursor]);
-  const canBack = $derived(cursor > 0);
-  const canForward = $derived(cursor < stack.length - 1);
+  const trail = $derived(hist[tab]);
+  const route = $derived(trail[trail.length - 1]);
+  const canBack = $derived(trail.length > 1);
 
   function setMode(next: Mode) {
     if (mode === next) return;
@@ -55,20 +66,14 @@
   function open(next: Route) {
     const domain = domainOf(next);
     tab = domain;
-    const record = hist[domain];
-    if (sameRoute(record.stack[record.cursor], next)) return;
-    record.stack = [...record.stack.slice(0, record.cursor + 1), next];
-    record.cursor = record.stack.length - 1;
+    const here = hist[domain];
+    if (sameRoute(here[here.length - 1], next)) return;
+    hist[domain] = [...here, next];
   }
 
   function back() {
-    const record = hist[tab];
-    if (record.cursor > 0) record.cursor -= 1;
-  }
-
-  function forward() {
-    const record = hist[tab];
-    if (record.cursor < record.stack.length - 1) record.cursor += 1;
+    const here = hist[tab];
+    if (here.length > 1) hist[tab] = here.slice(0, -1);
   }
 
   /// Put the capsule back where it was; the kernel picks capsule or icon from its own state.
@@ -139,6 +144,34 @@
     saveTimer = setTimeout(() => invoke("save_settings", { settings: snapshot }).catch(() => {}), 400);
   });
 
+  // Plans, roles and projects get the same treatment one file over. They used to be seeds
+  // that re-anchored to "today" on every launch; now an empty list is a real, saved state.
+  let dataReady = $state(false);
+  let dataTimer: ReturnType<typeof setTimeout> | undefined;
+
+  $effect(() => {
+    if (isPopup) return;
+    invoke<{ plans?: Plan[]; roles?: Role[]; projects?: Project[] }>("load_data")
+      .then((saved) => {
+        if (Array.isArray(saved.plans)) plans.splice(0, plans.length, ...saved.plans);
+        if (Array.isArray(saved.roles)) roles.splice(0, roles.length, ...saved.roles);
+        if (Array.isArray(saved.projects)) projects.splice(0, projects.length, ...saved.projects);
+        // Ids restart at 1 each launch, so the counter has to clear whatever came back.
+        adoptIds(saved.plans ?? [], saved.roles ?? [], saved.projects ?? []);
+      })
+      .catch(() => {})
+      .finally(() => (dataReady = true));
+  });
+
+  $effect(() => {
+    // Taking the snapshot is also what subscribes this effect to edits buried inside a plan,
+    // not just to the arrays being replaced.
+    const snapshot = $state.snapshot({ plans, roles, projects });
+    if (isPopup || !dataReady) return;
+    clearTimeout(dataTimer);
+    dataTimer = setTimeout(() => invoke("save_data", { data: snapshot }).catch(() => {}), 400);
+  });
+
   $effect(() => {
     if (isPopup) return;
     // The startup event races the listener, so ask for it once as well.
@@ -199,11 +232,9 @@
         {route}
         {tab}
         {canBack}
-        {canForward}
         onopen={open}
         onswitch={(next) => (tab = next)}
         {back}
-        {forward}
       />
     {:else}
       <Capsule

@@ -1,5 +1,17 @@
 <script lang="ts">
-  import { addPlan, clock, plans, projects, roles, todayKey, ui, view, type Domain, type Route } from "./store.svelte";
+  import {
+    addPlan,
+    clock,
+    plans,
+    projects,
+    roles,
+    todayKey,
+    ui,
+    view,
+    type Domain,
+    type Plan,
+    type Route,
+  } from "./store.svelte";
 
   let {
     domain,
@@ -88,10 +100,10 @@
   /// page that owns the work.
   function finish(id: string, filled: string[]) {
     if (id === "/新建计划") {
-      // An empty slot drops you on the plan tab to type one; a filled one shows the card.
-      const body = (filled[0] ?? "").trim();
-      if (body) openDraft(body);
-      else onswitch("plan");
+      // Every slot is optional, so an empty one still has to land somewhere real: the create
+      // form, blank. A filled one only pre-fills it -- nothing is written until 创建计划.
+      ui.planDraft = planSeed(filled[0] ?? "");
+      onopen({ name: "plan-new" });
     } else if (id === "/新建角色") {
       onswitch("role");
       ui.drawer = { kind: "role", name: filled[0] };
@@ -292,6 +304,21 @@
     }
     closed = true;
     openDraft(text.trim());
+  }
+
+  /// What was typed, shaped for the create form's one-shot seed. Only what was actually
+  /// understood goes in; the rest of the form keeps its defaults.
+  function planSeed(body: string): Partial<Omit<Plan, "id">> | null {
+    const text = body.trim();
+    if (!text) return null;
+    const read = readPlan(text);
+    const [h, m] = read.clock ? read.clock.split(":").map(Number) : [NaN, NaN];
+    return {
+      title: read.title,
+      ...(Number.isFinite(h) ? { start: h + m / 60, end: h + m / 60 + 0.5 } : {}),
+      repeat: read.daily ? ("daily" as const) : ("once" as const),
+      ...(roleChip ? { role: roleChip.label } : {}),
+    };
   }
 
   /// The card is the confirmation step: nothing is written until the user accepts it.

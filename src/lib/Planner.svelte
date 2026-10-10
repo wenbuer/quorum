@@ -2,28 +2,44 @@
   import { slide } from "svelte/transition";
   import { clock, keyOf, parseKey, plans, removePlan, todayKey, toggleDone, view, WEEKDAYS } from "./store.svelte";
 
-  let { onopen }: { onopen: (id: string) => void } = $props();
+  let { onopen, oncreate }: { onopen: (id: string) => void; oncreate: () => void } = $props();
 
-  let calOpen = $state(true);
+  // Collapsed by default: one week is what a day planner actually needs on screen.
+  let calOpen = $state(false);
 
   let cursor = $state(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
 
-  // Six rows always: switching months must not make the grid jump.
+  function dayCell(date: Date, out: boolean) {
+    const key = keyOf(date);
+    return {
+      key,
+      date: date.getDate(),
+      out,
+      today: key === todayKey,
+      count: plans.filter((p) => p.day === key).length,
+    };
+  }
+
+  // Collapsed it is the single week around the selected day; expanded, six rows always, so
+  // switching months must not make the grid jump.
   const cells = $derived.by(() => {
+    if (!calOpen) {
+      const anchor = parseKey(view.day);
+      const monday = new Date(anchor);
+      monday.setDate(anchor.getDate() - ((anchor.getDay() + 6) % 7));
+      return Array.from({ length: 7 }, (_, i) => {
+        const date = new Date(monday);
+        date.setDate(monday.getDate() + i);
+        return dayCell(date, false);
+      });
+    }
     const first = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
     const start = new Date(first);
     start.setDate(1 - ((first.getDay() + 6) % 7));
     return Array.from({ length: 42 }, (_, i) => {
       const date = new Date(start);
       date.setDate(start.getDate() + i);
-      const key = keyOf(date);
-      return {
-        key,
-        date: date.getDate(),
-        out: date.getMonth() !== cursor.getMonth(),
-        today: key === todayKey,
-        count: plans.filter((p) => p.day === key).length,
-      };
+      return dayCell(date, date.getMonth() !== cursor.getMonth());
     });
   });
 
@@ -63,21 +79,28 @@
 
 <section class="planner">
   <div class="head">
-    <button class="twist" class:closed={!calOpen} onclick={() => (calOpen = !calOpen)} aria-label="展开日历">
+    <button class="twist" class:closed={!calOpen} onclick={() => (calOpen = !calOpen)}>
       <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8">
         <path d="M4 6.5L8 10.5l4-4" stroke-linecap="round" stroke-linejoin="round" />
       </svg>
+      {calOpen ? "收起日历" : "展开完整日历"}
     </button>
     <span class="strong">{selLabel}</span>
     <span class="count num">{todays.length} 项</span>
     <span class="sep"></span>
     <span class="week-num num">本周 {weekCount} 项</span>
+    <span class="grow"></span>
+    <button class="new" onclick={oncreate}>
+      <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.7">
+        <path d="M8 3.6v8.8M3.6 8h8.8" stroke-linecap="round" />
+      </svg>
+      新建计划
+    </button>
   </div>
 
   {#if calOpen}
-    <div class="cal" transition:slide={{ duration: 180 }}>
-      <div class="cbar">
-        <button class="prev" onclick={() => shiftMonth(-1)} aria-label="上个月">
+    <div class="cbar" transition:slide={{ duration: 180 }}>
+      <button class="prev" onclick={() => shiftMonth(-1)} aria-label="上个月">
           <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8">
             <path d="M10 3.5L5.5 8l4.5 4.5" stroke-linecap="round" stroke-linejoin="round" />
           </svg>
@@ -88,15 +111,16 @@
             <path d="M6 3.5L10.5 8 6 12.5" stroke-linecap="round" stroke-linejoin="round" />
           </svg>
         </button>
-        <span class="grow"></span>
-        <button class="back-today" onclick={toToday}>回到今天</button>
-      </div>
+      <span class="grow"></span>
+      <button class="back-today" onclick={toToday}>回到今天</button>
+    </div>
+  {/if}
 
-      <div class="wd">
-        {#each WEEKDAYS as name (name)}<span>{name}</span>{/each}
-      </div>
+  <div class="wd">
+    {#each WEEKDAYS as name (name)}<span>{name}</span>{/each}
+  </div>
 
-      <div class="cgrid">
+  <div class="cgrid">
         {#each cells as cell (cell.key)}
           <button
             class="cell"
@@ -110,10 +134,8 @@
               {#each Array(Math.min(cell.count, 3)) as _, i (i)}<i></i>{/each}
             </span>
           </button>
-        {/each}
-      </div>
-    </div>
-  {/if}
+    {/each}
+  </div>
 
   <div class="list">
     {#each [{ key: "待执行", items: open }, { key: "已完成", items: done }] as group (group.key)}
@@ -159,26 +181,53 @@
   }
 
   .twist {
-    display: grid;
-    place-items: center;
-    width: 20px;
-    height: 20px;
-    padding: 0;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: 22px;
+    padding: 0 6px 0 4px;
     border: 0;
     border-radius: 5px;
     background: none;
     color: var(--text-3);
+    font: inherit;
+    font-size: 11px;
     cursor: pointer;
+  }
+
+  /* Only the chevron turns; the label next to it has to stay upright. */
+  .twist svg {
+    flex: none;
     transition: transform 0.15s ease;
   }
 
-  .twist.closed {
+  .twist.closed svg {
     transform: rotate(-90deg);
   }
 
   .twist:hover {
     background: var(--hover);
     color: var(--text);
+  }
+
+  .new {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: 24px;
+    padding: 0 10px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--r-tag);
+    background: var(--bg);
+    color: var(--text-2);
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+  }
+
+  .new:hover {
+    border-color: var(--brand);
+    color: var(--brand);
   }
 
   .strong {
