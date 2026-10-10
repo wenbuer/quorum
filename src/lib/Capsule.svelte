@@ -1,6 +1,7 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { getCurrentWindow } from "@tauri-apps/api/window";
+  import Mark from "./Mark.svelte";
   import { plans, todayKey, toggleDone, type Route } from "./store.svelte";
 
   let { edge = false, onopen }: { edge?: boolean; onopen: (route?: Route) => void } = $props();
@@ -101,16 +102,7 @@
 
 {#snippet mark()}
   <span class="mark" class:dim={!next} class:ok={!next && today.length > 0} aria-hidden="true">
-    {#if !next && today.length > 0}
-      <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8">
-        <path d="M3.5 8.4l3 3 6-6.6" stroke-linecap="round" stroke-linejoin="round" />
-      </svg>
-    {:else}
-      <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6">
-        <circle cx="8" cy="8" r="5.6" />
-        <path d="M8 5.2v3l2 1.4" stroke-linecap="round" />
-      </svg>
-    {/if}
+    <Mark size={14} />
   </span>
 {/snippet}
 

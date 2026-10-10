@@ -1,5 +1,6 @@
 <script lang="ts">
   import Composer from "./Composer.svelte";
+  import Mark from "./Mark.svelte";
   import PlanDetail from "./PlanDetail.svelte";
   import Planner from "./Planner.svelte";
   import ProjectPage from "./ProjectPage.svelte";
@@ -38,16 +39,7 @@
 
 <div class="panel">
   <header class="title" data-tauri-drag-region>
-    <span class="mark" aria-hidden="true">
-      <svg viewBox="0 0 1024 1024" width="17" height="17">
-        <rect width="1024" height="1024" rx="228" fill="var(--brand)" />
-        <path
-          d="M300 352h424c53 0 96 43 96 96v112c0 53-43 96-96 96H520l-108 108V656H300c-53 0-96-43-96-96V448c0-53 43-96 96-96z"
-          fill="#fff"
-        />
-        <rect x="352" y="464" width="248" height="64" rx="32" fill="#23c3d8" />
-      </svg>
-    </span>
+    <Mark size={18} />
     <span class="brand">智群</span>
   </header>
 
@@ -127,14 +119,6 @@
     align-items: center;
     gap: 7px;
     padding: 9px 14px 0;
-  }
-
-  .mark {
-    display: grid;
-    place-items: center;
-    border-radius: 5px;
-    overflow: hidden;
-    flex: none;
   }
 
   .brand {
