@@ -295,13 +295,6 @@
     font-weight: 600;
   }
 
-  .note {
-    margin: 2px 0 0;
-    font-size: 10.5px;
-    line-height: 1.6;
-    color: var(--text-3);
-  }
-
   .actions {
     display: flex;
     gap: 8px;
