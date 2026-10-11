@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { llmReady, parseNote } from "./note";
   import {
     addPlan,
     clock,
@@ -9,7 +10,10 @@
     ui,
     view,
     type Domain,
+    type Level,
     type Plan,
+    type PlanAction,
+    type Repeat,
     type Route,
   } from "./store.svelte";
 
@@ -59,9 +63,23 @@
   let hot = $state(0);
   let closed = $state(false);
   let pending = $state<{ id: string; params: string[]; filled: string[] } | null>(null);
-  let draft = $state<
-    { title: string; clock: string; daily: boolean; role: string; project: string; action: string } | null
-  >(null);
+  /// The card's shape is deliberately close to a Plan: the model fills the same fields the
+  /// form does, and 创建计划 just hands them over.
+  type Draft = {
+    title: string;
+    day: string;
+    start: number | null;
+    minutes: number;
+    level: Level;
+    repeat: Repeat;
+    role: string;
+    project: string;
+    note: string;
+    action: PlanAction;
+  };
+
+  let draft = $state<Draft | null>(null);
+  let noteState = $state<"" | "busy" | "failed">("");
   let inputEl = $state<HTMLInputElement | null>(null);
 
   // The panel is summoned to be typed into; landing on a form that ignores the keyboard
@@ -320,8 +338,8 @@
     return { title: body || fallback || "新计划", clock, daily };
   }
 
-  function submit() {
-    if (!canSubmit) return;
+  async function submit() {
+    if (!canSubmit || noteState === "busy") return;
     if (pending) {
       const value = text.trim();
       text = "";
@@ -351,7 +369,39 @@
       reset();
       return;
     }
-    if (domain === "plan") openDraft(typed);
+    if (domain !== "plan") return;
+
+    // The offline parse goes first: it is instant, needs no network, and gives the card
+    // something to show while the model is still thinking. Whatever the model answers then
+    // overwrites it -- and if it never answers, this is what the user keeps.
+    openDraft(typed);
+    noteState = "";
+    if (!typed || !llmReady()) return;
+
+    noteState = "busy";
+    try {
+      const better = await parseNote(typed, roles.map((role) => role.name), todayKey);
+      if (better && draft) {
+        draft = {
+          ...draft,
+          title: better.title ?? draft.title,
+          day: better.day ?? draft.day,
+          start: better.start ?? draft.start,
+          minutes:
+            better.start !== undefined && better.end !== undefined
+              ? Math.max(5, Math.round((better.end - better.start) * 60))
+              : draft.minutes,
+          level: better.level ?? draft.level,
+          repeat: better.repeat ?? draft.repeat,
+          role: better.role ?? draft.role,
+          action: better.action ?? draft.action,
+        };
+      }
+    } catch {
+      noteState = "failed";
+    } finally {
+      if (noteState === "busy") noteState = "";
+    }
   }
 
   /// What was typed, shaped for the create form's one-shot seed. Only what was actually
@@ -371,28 +421,36 @@
 
   /// The card is the confirmation step: nothing is written until the user accepts it.
   function openDraft(body: string) {
+    const read = readPlan(body);
+    const [h, m] = read.clock ? read.clock.split(":").map(Number) : [NaN, NaN];
     draft = {
-      ...readPlan(body),
-      role: roleChip?.label ?? "编排",
+      title: read.title,
+      day: view.day,
+      start: Number.isFinite(h) ? h + m / 60 : null,
+      minutes: 30,
+      level: "L1",
+      repeat: read.daily ? "daily" : "once",
+      role: roleChip?.label ?? roles[0]?.name ?? "编排",
       project: project?.label ?? "",
-      action: actionChip?.label ?? "",
+      note: actionChip?.label ?? "",
+      action: { kind: "remind", prompt: "" },
     };
   }
 
   function accept() {
     if (!draft) return;
-    const [h, m] = draft.clock ? draft.clock.split(":") : [];
-    const start = h ? Number(h) + Number(m) / 60 : 12;
+    const start = draft.start ?? 12;
     addPlan({
-      day: view.day,
+      day: draft.day,
       start,
-      end: start + 0.5,
+      end: start + draft.minutes / 60,
       title: draft.title,
-      note: [draft.project, draft.action].filter(Boolean).join(" · "),
+      note: [draft.project, draft.note].filter(Boolean).join(" · "),
       role: draft.role,
-      level: "L1",
-      repeat: draft.daily ? "daily" : "once",
+      level: draft.level,
+      repeat: draft.repeat,
       done: false,
+      action: draft.action,
     });
     draft = null;
     text = "";
@@ -508,8 +566,8 @@
       onfocus={() => (closed = false)}
       onblur={() => (closed = true)}
     />
-    <button class="send" onclick={submit} disabled={!canSubmit}>
-      {pending || chips.length > 0 ? "执行" : domain === "plan" ? "解析" : "新建"}
+    <button class="send" onclick={submit} disabled={!canSubmit || noteState === "busy"}>
+      {noteState === "busy" ? "解析中" : pending || chips.length > 0 ? "执行" : domain === "plan" ? "解析" : "新建"}
     </button>
   </div>
 
@@ -534,15 +592,20 @@
 
   {#if draft}
     <div class="draft">
-      <span class="dlabel">将创建计划</span>
+      <span class="dlabel">{noteState === "busy" ? "解析中" : "将创建计划"}</span>
       <span class="dtitle">{draft.title}</span>
-      <span class="dmeta num">{draft.daily ? "每天 " : ""}{draft.clock || "时间待定"}</span>
-      <span class="dmeta">{draft.project || "未选项目"}</span>
-      <span class="dmeta">{draft.action || "未选动作"}</span>
+      <span class="dmeta num">{draft.repeat === "daily" ? "每天 " : ""}{draft.start === null ? "时间待定" : clock(draft.start)}</span>
+      <span class="dmeta num">{draft.minutes} 分钟</span>
+      <span class="dmeta">{draft.level}</span>
       <span class="dmeta">{draft.role}</span>
+      {#if draft.project}<span class="dmeta">{draft.project}</span>{/if}
+      {#if draft.note}<span class="dmeta">{draft.note}</span>{/if}
+      {#if draft.action.kind === "run"}<span class="dmeta">交给角色做</span>{/if}
+      {#if draft.day !== view.day}<span class="dmeta num">{draft.day}</span>{/if}
+      {#if noteState === "failed"}<span class="dmeta">大模型没接上，用的本地解析</span>{/if}
       <span class="grow"></span>
       <button class="dact" onclick={() => (draft = null)}>取消</button>
-      <button class="dact primary" onclick={accept}>创建计划</button>
+      <button class="dact primary" onclick={accept} disabled={noteState === "busy"}>创建计划</button>
     </div>
   {/if}
 </div>
@@ -775,6 +838,7 @@
 
   .draft {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 9px;
     margin-top: 8px;

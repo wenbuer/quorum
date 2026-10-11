@@ -150,6 +150,33 @@
     </div>
 
     <div class="row">
+      <span class="lb">动作</span>
+      <div class="chips">
+        <button
+          class="chip"
+          class:on={draft.action.kind === "remind"}
+          onclick={() => draft && (draft.action = { kind: "remind", prompt: draft.action.prompt })}
+        >
+          只提醒
+        </button>
+        <button
+          class="chip"
+          class:on={draft.action.kind === "run"}
+          onclick={() => draft && (draft.action = { kind: "run", prompt: draft.action.prompt || draft.title })}
+        >
+          交给角色做
+        </button>
+      </div>
+    </div>
+
+    {#if draft.action.kind === "run"}
+      <label class="field">
+        <span class="lb">让角色做什么</span>
+        <input bind:value={draft.action.prompt} spellcheck="false" placeholder="例如：把这一周的会议记录整理成周报" />
+      </label>
+    {/if}
+
+    <div class="row">
       <span class="lb">角色</span>
       <select class="tin" bind:value={draft.role}>
         {#each roles as role (role.id)}

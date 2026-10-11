@@ -161,6 +161,14 @@
       <input type="password" bind:value={settings.llm.apiKey} spellcheck="false" placeholder="没有就留空" />
     </label>
 
+    <label class="item">
+      <div>
+        <p class="t">用它解析便签</p>
+        <p class="d">写下的计划先交给大模型理解，再把结果填进确认卡片；关掉或连不上时用本地解析</p>
+      </div>
+      <input class="switch" type="checkbox" bind:checked={settings.llm.parseNotes} />
+    </label>
+
     <div class="actions">
       <button class="mini" onclick={testLlm} disabled={testing || !settings.llm.baseUrl}>
         {testing ? "连接中…" : "测试连接"}

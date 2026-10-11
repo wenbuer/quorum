@@ -14,6 +14,7 @@
     sameRoute,
     settings,
     ui,
+    withAction,
     type Domain,
     type Plan,
     type Project,
@@ -179,7 +180,8 @@
     if (isPopup) return;
     invoke<{ plans?: Plan[]; roles?: Role[]; projects?: Project[] }>("load_data")
       .then((saved) => {
-        if (Array.isArray(saved.plans)) plans.splice(0, plans.length, ...saved.plans);
+        // Plans written before the field existed only ever reminded.
+        if (Array.isArray(saved.plans)) plans.splice(0, plans.length, ...saved.plans.map(withAction));
         if (Array.isArray(saved.roles)) roles.splice(0, roles.length, ...saved.roles);
         if (Array.isArray(saved.projects)) projects.splice(0, projects.length, ...saved.projects);
         // Ids restart at 1 each launch, so the counter has to clear whatever came back.

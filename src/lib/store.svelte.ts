@@ -2,7 +2,11 @@ export type Level = "L1" | "L2" | "L3";
 export type Repeat = "once" | "daily";
 export type Domain = "plan" | "role" | "project" | "settings";
 
-/** Plans own the schedule and the notification: title, note, when, how loud. */
+/// What a plan does when it comes due. `run` is the hook the roles will execute -- nothing
+/// runs it yet, but the field has to exist before the task store locks its shape.
+export type PlanAction = { kind: "remind" | "run"; prompt: string };
+
+/** Plans own the schedule and the notification: title, note, when, how loud, and what to do. */
 export type Plan = {
   id: string;
   day: string;
@@ -14,6 +18,7 @@ export type Plan = {
   level: Level;
   repeat: Repeat;
   done: boolean;
+  action: PlanAction;
 };
 
 /** A role owns its identity and what it is allowed to touch. */
@@ -84,7 +89,15 @@ export const CAPSULE_TONES = [
   { name: "雾灰", value: "#eef0f4" },
 ];
 
-export type Llm = { provider: string; baseUrl: string; model: string; apiKey: string };
+export type Llm = {
+  provider: string;
+  baseUrl: string;
+  model: string;
+  apiKey: string;
+  /// Off means every note is parsed by the offline regex, which costs nothing and needs no
+  /// network. On is the default: the field only exists so a metered key can be spared.
+  parseNotes: boolean;
+};
 
 /// OpenAI-compatible endpoints only: one request shape covers the cloud ones and the
 /// local runtimes, so nothing here is provider-specific yet.
@@ -110,6 +123,7 @@ export const settings = $state({
     baseUrl: "https://api.openai.com/v1",
     model: "gpt-4o-mini",
     apiKey: "",
+    parseNotes: true,
   } as Llm,
 });
 
@@ -199,7 +213,13 @@ export function blankPlan(day: string): Omit<Plan, "id"> {
     level: "L1",
     repeat: "once",
     done: false,
+    action: { kind: "remind", prompt: "" },
   };
+}
+
+/// Plans written before `action` existed only ever reminded, so that is what they get.
+export function withAction(plan: Plan): Plan {
+  return { ...plan, action: plan.action ?? { kind: "remind", prompt: "" } };
 }
 
 export function addPlan(plan: Omit<Plan, "id">) {
