@@ -97,6 +97,10 @@ export type Llm = {
   /// Off means every note is parsed by the offline regex, which costs nothing and needs no
   /// network. On is the default: the field only exists so a metered key can be spared.
   parseNotes: boolean;
+  /// The last word the endpoint gave us: "" never asked, "ok" answered, "failed" did not.
+  /// Written by the connection test and by every note the parser sends, so the panel's pill
+  /// stays honest without polling anything.
+  status: "ok" | "failed" | "";
 };
 
 /// OpenAI-compatible endpoints only: one request shape covers the cloud ones and the
@@ -124,6 +128,7 @@ export const settings = $state({
     model: "gpt-4o-mini",
     apiKey: "",
     parseNotes: true,
+    status: "",
   } as Llm,
 });
 
@@ -150,7 +155,10 @@ export const ui = $state<{
   projectDraft: null | { name: string; path: string };
   /// Same one-shot trick as projectDraft: a command fills it, the create form reads it once.
   planDraft: null | Partial<Omit<Plan, "id">>;
-}>({ drawer: null, projectDraft: null, planDraft: null });
+  /// The settings page's 大模型 drawer. It lives here rather than in the page so Escape can
+  /// close the drawer instead of the whole panel.
+  llmOpen: boolean;
+}>({ drawer: null, projectDraft: null, planDraft: null, llmOpen: false });
 
 export function rootOf(domain: Domain): Route {
   switch (domain) {

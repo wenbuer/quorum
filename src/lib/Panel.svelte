@@ -7,6 +7,7 @@
   import Projects from "./Projects.svelte";
   import Roles from "./Roles.svelte";
   import Settings from "./Settings.svelte";
+  import { llmConnected } from "./note";
   import { clock, keyOf, plans, todayKey, type Domain, type Route } from "./store.svelte";
 
   let {
@@ -66,6 +67,15 @@
   <header class="title" data-tauri-drag-region>
     <Mark size={18} />
     <span class="brand">智群</span>
+    {#if !llmConnected()}
+      <button
+        class="llm-state"
+        title="大模型还没连上，便签只能用本地正则解析"
+        onclick={() => onopen({ name: "settings" })}
+      >
+        <span class="sdot" aria-hidden="true"></span>未连接
+      </button>
+    {/if}
   </header>
 
   <Composer domain={tab} {active} {onopen} {onswitch} />
@@ -141,6 +151,31 @@
     align-items: center;
     gap: 7px;
     padding: 9px 14px 0;
+  }
+
+  /* The panel says out loud why a note came back parsed by the regex, and offers the fix --
+     a top-right badge rather than a dialog nobody asked for. */
+  .llm-state {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-left: auto;
+    height: 20px;
+    padding: 0 8px;
+    border: 0;
+    border-radius: var(--r-tag);
+    background: var(--orange-dim);
+    color: var(--orange);
+    font: inherit;
+    font-size: 10px;
+    cursor: pointer;
+  }
+
+  .llm-state .sdot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: currentColor;
   }
 
   .brand {

@@ -26,6 +26,12 @@ export function llmReady() {
   return settings.llm.parseNotes && settings.llm.baseUrl.trim().length > 0;
 }
 
+/// The panel asks this for its status pill. "Never tried" counts as not connected: the pill
+/// exists to explain why a note came back parsed by the regex.
+export function llmConnected() {
+  return settings.llm.status === "ok";
+}
+
 /** The model is asked for bare JSON, but a fenced block is a common enough answer that
  *  refusing it would only cost a fallback. Take the outermost braces and try. */
 function extractJson(raw: string): unknown {
@@ -83,25 +89,33 @@ export async function parseNote(
   const base = settings.llm.baseUrl.replace(/\/+$/, "");
   if (!base || !text.trim()) return null;
 
-  const res = await fetch(base + "/chat/completions", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      ...(settings.llm.apiKey ? { authorization: "Bearer " + settings.llm.apiKey } : {}),
-    },
-    body: JSON.stringify({
-      model: settings.llm.model,
-      temperature: 0,
-      messages: [
-        { role: "system", content: SYSTEM },
-        {
-          role: "user",
-          content: `今天是 ${today}。可用角色：${roleNames.join("、") || "编排"}。\n用户写的是：${text}`,
-        },
-      ],
-    }),
-    signal: AbortSignal.timeout(15000),
-  });
+  let res: Response;
+  try {
+    res = await fetch(base + "/chat/completions", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...(settings.llm.apiKey ? { authorization: "Bearer " + settings.llm.apiKey } : {}),
+      },
+      body: JSON.stringify({
+        model: settings.llm.model,
+        temperature: 0,
+        messages: [
+          { role: "system", content: SYSTEM },
+          {
+            role: "user",
+            content: `今天是 ${today}。可用角色：${roleNames.join("、") || "编排"}。\n用户写的是：${text}`,
+          },
+        ],
+      }),
+      signal: AbortSignal.timeout(15000),
+    });
+  } catch (error) {
+    settings.llm.status = "failed";
+    throw error;
+  }
+  // Anything short of a clean answer means the panel's pill should stop claiming a connection.
+  settings.llm.status = res.ok ? "ok" : "failed";
   if (!res.ok) throw new Error("llm " + res.status);
 
   const payload = await res.json();

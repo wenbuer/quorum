@@ -97,7 +97,8 @@
     // Escape never answers a strong reminder: that card is meant to stay until it is
     // actually dealt with, and a stray keypress should not count as dealing with it.
     if (event.key !== "Escape" || isPopup) return;
-    if (ui.drawer) ui.drawer = null;
+    if (ui.llmOpen) ui.llmOpen = false;
+    else if (ui.drawer) ui.drawer = null;
     else restore();
   }
 
