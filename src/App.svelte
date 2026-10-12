@@ -120,7 +120,15 @@
       .then((saved) => {
         if (typeof saved.capsule === "string") settings.capsule = saved.capsule;
         if (typeof saved.floatingIcon === "boolean") settings.floatingIcon = saved.floatingIcon;
-        if (saved.llm && typeof saved.llm === "object") Object.assign(settings.llm, saved.llm);
+        // Copied field by field rather than assigned wholesale: a config that keeps retired
+        // keys drifts out of step with the shape the code actually reads.
+        if (saved.llm && typeof saved.llm === "object") {
+          const stored = saved.llm as Record<string, unknown>;
+          for (const key of Object.keys(settings.llm)) {
+            const value = stored[key];
+            if (typeof value === "string") (settings.llm as Record<string, unknown>)[key] = value;
+          }
+        }
       })
       .catch(() => {})
       .finally(() => (restored = true));

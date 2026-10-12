@@ -94,9 +94,6 @@ export type Llm = {
   baseUrl: string;
   model: string;
   apiKey: string;
-  /// Off means every note is parsed by the offline regex, which costs nothing and needs no
-  /// network. On is the default: the field only exists so a metered key can be spared.
-  parseNotes: boolean;
   /// The last word the endpoint gave us: "" never asked, "ok" answered, "failed" did not.
   /// Written by the connection test and by every note the parser sends, so the panel's pill
   /// stays honest without polling anything.
@@ -127,7 +124,6 @@ export const settings = $state({
     baseUrl: "https://api.openai.com/v1",
     model: "gpt-4o-mini",
     apiKey: "",
-    parseNotes: true,
     status: "",
   } as Llm,
 });

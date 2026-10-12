@@ -22,8 +22,10 @@ const SYSTEM = `你是"智群"的计划解析器。把用户随手写的一句�
 
 const LEVELS = ["L1", "L2", "L3"];
 
+/// Nothing to switch on: a configured endpoint is always asked, and the confirmation card is
+/// what keeps that safe -- the model proposes, the card is where a person says yes.
 export function llmReady() {
-  return settings.llm.parseNotes && settings.llm.baseUrl.trim().length > 0;
+  return settings.llm.baseUrl.trim().length > 0;
 }
 
 /// The panel asks this for its status pill. "Never tried" counts as not connected: the pill
